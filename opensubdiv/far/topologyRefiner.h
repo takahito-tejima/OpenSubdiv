@@ -52,6 +52,8 @@ namespace Far {
 
 template <class MESH> class TopologyRefinerFactory;
 
+struct HierarchicalEdits;
+
 ///
 ///  \brief Stores topology data for a specified set of refinement options.
 ///
@@ -339,6 +341,18 @@ public:
     //@}
 
     //@{
+    /// @name Hierachical sharpness edits
+    void SetEdgeSharpness(int level, Index edge, float sharpness) {
+        _levels[level]->setEdgeSharpness(edge, sharpness);
+    }
+    void SetVertexSharpness(int level, Index vertex, float sharpness) {
+        _levels[level]->setVertexSharpness(vertex, sharpness);
+    }
+    ///
+    //@}
+
+    
+    //@{
     /// @name Topological relations -- incident/adjacent components
     ///
 
@@ -531,6 +545,8 @@ public:
 
     //@}
 
+    HierarchicalEdits * GetHierarchicalEdits() const { return _hedits; }
+
 protected:
 
     //
@@ -580,6 +596,9 @@ protected:
 
     void setBaseMaxValence(int valence) { _levels[0]->setMaxValence(valence); }
     void initializeBaseInventory() { initializeInventory(); }
+
+    void setHierarchicalEdits(HierarchicalEdits *hedits) { _hedits = hedits; }
+
 
 protected:
 
@@ -647,6 +666,8 @@ private:
     std::vector<Vtr::Refinement *> _refinements;
 
     std::vector<Index> _ptexIndices;
+
+    HierarchicalEdits *_hedits;
 };
 
 

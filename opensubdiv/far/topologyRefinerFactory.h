@@ -177,6 +177,7 @@ protected:
     //  Optional:
     static bool assignComponentTags(TopologyRefiner& refiner, MESH const& mesh);
     static bool assignFaceVaryingTopology(TopologyRefiner& refiner, MESH const& mesh);
+    static bool assignHierarchicalEdits(TopologyRefiner& refiner, MESH const& mesh);
 
     //  Optional miscellaneous specializations -- error reporting, etc.:
     typedef Vtr::Level::TopologyError TopologyError;
@@ -195,6 +196,14 @@ TopologyRefinerFactory<MESH>::Create(MESH const& mesh, Options options) {
     TopologyRefiner * refiner = new TopologyRefiner(options.schemeType, options.schemeOptions);
 
     if (not populateBaseLevel(*refiner, mesh, options)) {
+        delete refiner;
+        return 0;
+    }
+
+    //
+    //  Add hierarchical edits
+    //
+    if (not assignHierarchicalEdits(*refiner, mesh)) {
         delete refiner;
         return 0;
     }
@@ -376,6 +385,16 @@ TopologyRefinerFactory<MESH>::assignComponentTags(TopologyRefiner& /* refiner */
     //      void TopologyRefiner::setBaseVertexSharpness(Index vertex, float sharpness)
     //
     //      void TopologyRefiner::setBaseFaceHole(Index face, bool hole)
+    //
+    return true;
+}
+
+template <class MESH>
+bool
+TopologyRefinerFactory<MESH>::assignHierarchicalEdits(TopologyRefiner& /* refiner */, MESH const& /*mesh */) {
+
+    //
+    //  Optional tagging for hierarchical edits:
     //
     return true;
 }

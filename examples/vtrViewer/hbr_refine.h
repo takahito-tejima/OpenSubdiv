@@ -37,7 +37,7 @@
 // Vertex class implementation
 struct Vertex {
 
-    Vertex() { /* _pos[0]=_pos[1]=_pos[2]=0.0f; */ }
+    Vertex() { _pos[0]=_pos[1]=_pos[2]=0.0f; }
 
     Vertex( int /*i*/ ) { }
 
@@ -83,6 +83,15 @@ struct Vertex {
             _pos[1] -= src[1];
             _pos[2] -= src[2];
             break;
+        }
+    }
+
+    void ApplyVertexEdit(float x, float y, float z) {
+//        switch(edit.GetOperation()) {
+        {
+            _pos[0] += x;
+            _pos[1] += y;
+            _pos[2] += z;
         }
     }
 

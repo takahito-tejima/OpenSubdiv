@@ -1205,13 +1205,16 @@ PatchTablesFactory::createUniform(TopologyRefiner const & refiner, Options optio
             }
         }
 
-        if (options.generateAllLevels) {
+        // when the stencil tables is not factorized, skip preceding vertices
+        // even if we populate only the max level.
+        if (options.generateAllLevels or (not options.skipIntermediateLevels)) {
             levelVertOffset += refiner.GetNumVertices(level);
             for (fvc=fvc.begin(); fvc!=fvc.end(); ++fvc) {
                 levelFVarVertOffsets[fvc.pos()] += refiner.GetNumFVarValues(level, fvc.pos());
             }
         }
     }
+
     return tables;
 }
 

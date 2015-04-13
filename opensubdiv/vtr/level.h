@@ -369,6 +369,9 @@ protected:
     float& getEdgeSharpness(Index edgeIndex);
     float& getVertexSharpness(Index vertIndex);
 
+    void setEdgeSharpness(Index edgeIndex, float sharpness);
+    void setVertexSharpness(Index vertIndex, float sharpness);
+
     //  Create, destroy and populate face-varying channels:
     int  createFVarChannel(int fvarValueCount, Sdc::Options const& options);
     void destroyFVarChannel(int channel = 0);
@@ -692,6 +695,27 @@ Level::getEdgeSharpness(Index edgeIndex) {
     return _edgeSharpness[edgeIndex];
 }
 
+inline void
+Level::setEdgeSharpness(Index edgeIndex, float sharpness)
+{
+    // hierarchical edge shapeness edit
+    _edgeSharpness[edgeIndex] = sharpness;
+    ConstIndexArray pEdgeVerts = getEdgeVertices(edgeIndex);
+    if (sharpness > 0) {
+        _edgeTags[edgeIndex]._semiSharp = true;
+        // XXX: not correct.
+        // better to call a similar function to reclassifySemisharpVertices()
+        _vertTags[pEdgeVerts[0]]._rule = Sdc::Crease::RULE_CREASE;
+        _vertTags[pEdgeVerts[1]]._rule = Sdc::Crease::RULE_CREASE;
+    } else {
+        _edgeTags[edgeIndex]._semiSharp = false;
+        // XXX: not correct.
+        // better to call a similar function to reclassifySemisharpVertices()
+        _vertTags[pEdgeVerts[0]]._rule = Sdc::Crease::RULE_SMOOTH;
+        _vertTags[pEdgeVerts[1]]._rule = Sdc::Crease::RULE_SMOOTH;
+    }
+}
+
 inline float
 Level::getVertexSharpness(Index vertIndex) const {
     return _vertSharpness[vertIndex];
@@ -699,6 +723,20 @@ Level::getVertexSharpness(Index vertIndex) const {
 inline float&
 Level::getVertexSharpness(Index vertIndex) {
     return _vertSharpness[vertIndex];
+}
+
+inline void
+Level::setVertexSharpness(Index vertIndex, float sharpness)
+{
+    // hierarchical vertex sharpness edit
+    _vertSharpness[vertIndex] = sharpness;
+    if (sharpness > 0) {
+        // XXX: not correct.
+        // better to call a similar function to reclassifySemisharpVertices()
+        _vertTags[vertIndex]._rule = Sdc::Crease::RULE_CORNER;
+    } else {
+        _vertTags[vertIndex]._rule = Sdc::Crease::RULE_SMOOTH;
+    }
 }
 
 inline Sdc::Crease::Rule

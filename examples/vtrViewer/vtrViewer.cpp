@@ -76,8 +76,8 @@ GLFWmonitor* g_primary=0;
 #include <sstream>
 
 //------------------------------------------------------------------------------
-int g_level = 3,
-    g_currentShape = 7;
+int g_level = 1,
+    g_currentShape = 0;
 
 enum HudCheckBox { kHUD_CB_DISPLAY_CAGE_EDGES,
                    kHUD_CB_DISPLAY_CAGE_VERTS,
@@ -90,8 +90,7 @@ enum DrawMode { kDRAW_NONE = 0,
                 kDRAW_FACES };
 
 
-int   g_frame = 0,
-      g_repeatCount = 0;
+int   g_frame = 0;
 
 // GUI variables
 int   g_fullscreen = 0,
@@ -101,12 +100,12 @@ int   g_fullscreen = 0,
 int   g_displayPatchColor    = 1,               
       g_drawCageEdges        = 1,               
       g_drawCageVertices     = 0,               
-      g_HbrDrawMode          = kDRAW_WIREFRAME, 
+    g_HbrDrawMode          = kDRAW_NONE,
       g_HbrDrawVertIDs       = false,           
       g_HbrDrawEdgeSharpness = false,           
       g_HbrDrawFaceIDs       = false,           
       g_HbrDrawPtexIDs       = false,           
-      g_VtrDrawMode          = kDRAW_NONE,      
+      g_VtrDrawMode          = kDRAW_FACES,
       g_VtrDrawVertIDs       = false,           
       g_VtrDrawEdgeIDs       = false,           
       g_VtrDrawFaceIDs       = false,           
@@ -119,7 +118,7 @@ int   g_displayPatchColor    = 1,
       g_numPatches           = 0,               
       g_maxValence           = 0,               
       g_currentPatch         = 0,               
-      g_Adaptive             = true;            
+    g_Adaptive             = true;
 
 typedef OpenSubdiv::Sdc::Options SdcOptions;
 
@@ -380,6 +379,7 @@ createVertNumbers(OpenSubdiv::Far::TopologyRefiner const & refiner,
             firstvert += refiner.GetNumVertices(i);
         }
     }
+    using namespace OpenSubdiv;
 
     static char buf[16];
     if (refiner.IsUniform()) {
@@ -745,6 +745,7 @@ createPtexNumbers(OpenSubdiv::Far::PatchTables const & patchTables,
 }
 
 //------------------------------------------------------------------------------
+
 static void
 createVtrMesh(Shape * shape, int maxlevel) {
 
@@ -791,11 +792,15 @@ createVtrMesh(Shape * shape, int maxlevel) {
         OpenSubdiv::Far::StencilTablesFactory::Options options;
         options.generateOffsets=true;
         options.generateIntermediateLevels=true;
+        //        options.factorizeIntermediateLevels= g_Adaptive ? true: false;
+        options.factorizeIntermediateLevels= false;
 
         stencilTables =
             OpenSubdiv::Far::StencilTablesFactory::Create(*refiner, options);
     }
 #endif
+
+    printf("%d stencils\n", stencilTables->GetNumStencils());
 
     //
     // Patch tables
@@ -840,19 +845,21 @@ createVtrMesh(Shape * shape, int maxlevel) {
             refiner->InterpolateFaceVarying(values, values + nCoarseValues);
         }
     }
-    // note: gregoryBasisStencilTables is owned by patchTables.
-    OpenSubdiv::Far::StencilTables const * gregoryBasisStencilTables =
-        patchTables->GetEndCapVertexStencilTables();
+    if (patchTables) {
+        // note: gregoryBasisStencilTables is owned by patchTables.
+        OpenSubdiv::Far::StencilTables const * gregoryBasisStencilTables =
+            patchTables->GetEndCapVertexStencilTables();
 
-    if (gregoryBasisStencilTables) {
-        OpenSubdiv::Far::StencilTables const *inStencilTables[] = {
-            stencilTables, gregoryBasisStencilTables
-        };
-        OpenSubdiv::Far::StencilTables const *concatStencilTables = 
-            concatStencilTables = OpenSubdiv::Far::StencilTablesFactory::Create(
-                2, inStencilTables);
-        delete stencilTables;
-        stencilTables = concatStencilTables;
+        if (gregoryBasisStencilTables) {
+            OpenSubdiv::Far::StencilTables const *inStencilTables[] = {
+                stencilTables, gregoryBasisStencilTables
+            };
+            OpenSubdiv::Far::StencilTables const *concatStencilTables = 
+                concatStencilTables = OpenSubdiv::Far::StencilTablesFactory::Create(
+                    2, inStencilTables);
+            delete stencilTables;
+            stencilTables = concatStencilTables;
+        }
     }
 
     int numTotalVerts = shape->GetNumVertices() + stencilTables->GetNumStencils();
@@ -871,7 +878,43 @@ createVtrMesh(Shape * shape, int maxlevel) {
     //
     // apply stencils
     //
-    stencilTables->UpdateValues(verts, verts + ncoarseverts);
+    if (false && g_Adaptive) {
+        // factorizaed stencil application
+        stencilTables->UpdateValues(verts, verts + ncoarseverts);
+    } else {
+        // non-factorized stencil application
+
+        int firstVertex = ncoarseverts;
+        int controlVertex = 0;
+        for(int i = 1; i <= maxlevel; ++i) {
+            int nVertsInLevel = refiner->GetNumVertices(i);
+
+            stencilTables->UpdateValues(verts + controlVertex,
+                                        verts + ncoarseverts,
+                                        firstVertex-ncoarseverts,
+                                        firstVertex-ncoarseverts+nVertsInLevel);
+
+            HierarchicalEditsXYZ *hedits = (HierarchicalEditsXYZ*)refiner->GetHierarchicalEdits();
+            if (hedits) {
+
+                // apply hierarchical edit
+                int level = i;
+                for (size_t i = 0; i < hedits->vertexValueEdits.size(); ++i) {
+                    OpenSubdiv::Far::HierarchicalEdits::IndexPath &edit = hedits->vertexValueEdits[i];
+                    if (level+1 != (int)edit.indicesInFace.size()) continue;
+
+                    int vid = edit.indicesInLevel[level+1] + firstVertex;
+
+                    verts[vid].ApplyVertexEdit(hedits->editValues[i*3],
+                                               hedits->editValues[i*3+1],
+                                               hedits->editValues[i*3+2]);
+                }
+            }
+
+            controlVertex = firstVertex;
+            firstVertex += nVertsInLevel;
+        }
+    }
 
     s.Stop();
 
@@ -1477,15 +1520,6 @@ uninitGL() {
 
 //------------------------------------------------------------------------------
 static void
-idle() {
-
-    if (g_repeatCount != 0 and g_frame >= g_repeatCount)
-        g_running = 0;
-}
-
-
-//------------------------------------------------------------------------------
-static void
 setGLCoreProfile() {
 
     #define glfwOpenWindowHint glfwWindowHint
@@ -1516,8 +1550,6 @@ int main(int argc, char ** argv)
     for (int i = 1; i < argc; ++i) {
         if (!strcmp(argv[i], "-d"))
             g_level = atoi(argv[++i]);
-        else if (!strcmp(argv[i], "-c"))
-            g_repeatCount = atoi(argv[++i]);
         else if (!strcmp(argv[i], "-f"))
             fullscreen = true;
         else {
@@ -1607,10 +1639,9 @@ int main(int argc, char ** argv)
 
     checkGLErrors("before loop");
     while (g_running) {
-        idle();
         display();
 
-        glfwPollEvents();
+        glfwWaitEvents();
         glfwSwapBuffers(g_window);
 
         glFinish();

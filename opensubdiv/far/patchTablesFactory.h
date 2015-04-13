@@ -55,6 +55,7 @@ public:
 
         Options(unsigned int maxIsolation=10) :
              generateAllLevels(false),
+             skipIntermediateLevels(true),
              triangulateQuads(false),
              useSingleCreasePatch(false),
              maxIsolationLevel(maxIsolation),
@@ -67,6 +68,7 @@ public:
         { }
 
         unsigned int generateAllLevels    : 1, ///< Include levels from 'firstLevel' to 'maxLevel' (Uniform mode only)
+                     skipIntermediateLevels : 1, ///< skip indices for intermediate level vertices (Uniform mode only)
                      triangulateQuads     : 1, ///< Triangulate 'QUADS' primitives (Uniform mode only)
                      useSingleCreasePatch : 1, ///< Use single crease patch
                      maxIsolationLevel    : 4, ///< Cap adaptive feature isolation to the given level (max. 10)

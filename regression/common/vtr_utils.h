@@ -26,6 +26,7 @@
 #define VTR_UTILS_H
 
 #include <far/topologyRefinerFactory.h>
+#include <far/hierarchicalEdits.h>
 #include <far/types.h>
 
 #include "../../regression/common/shape_utils.h"
@@ -168,6 +169,9 @@ InterpolateVtrVertexData(const char *shapeStr, Scheme scheme, int maxlevel,
     return refiner;
 }
 
+struct HierarchicalEditsXYZ : OpenSubdiv::OPENSUBDIV_VERSION::Far::HierarchicalEdits {
+    std::vector<float> editValues;
+};
 
 //------------------------------------------------------------------------------
 
@@ -296,6 +300,83 @@ TopologyRefinerFactory<Shape>::assignComponentTags(
     }
     return true;
 }
+
+//----------------------------------------------------------
+
+template <>
+inline bool
+TopologyRefinerFactory<Shape>::assignHierarchicalEdits(
+    Far::TopologyRefiner & refiner, Shape const & shape) {
+
+    //TopologyRefiner::HierarchicalEdits *hedits = new TopologyRefiner::HierarchicalEdits();
+    HierarchicalEditsXYZ *hedits = new HierarchicalEditsXYZ();
+
+    for (int i=0; i<(int)shape.tags.size(); ++i) {
+
+        Shape::tag * t = shape.tags[i];
+
+        if (t->name == "vertexedit") {
+            const std::string & opname = t->stringargs[2];
+            //const std::string & opmodifiername = t->stringargs[0];
+            //const std::string & varname = t->stringargs[1];
+            int nIntArgs = t->intargs.size();
+            if (opname == "sharpness") {
+                int arg = 0, farg = 0;
+                do {
+                    HierarchicalEdits::IndexPath edit;
+                    int depth = t->intargs[arg++];
+                    edit.indicesInLevel.push_back(t->intargs[arg++]);
+                    for (int j = 0; j < depth-1; ++j) {
+                        edit.indicesInFace.push_back(t->intargs[arg++]);
+                    }
+                    hedits->vertexSharpnessEdits.push_back(edit);
+                    hedits->vertexSharpnesses.push_back(t->floatargs[farg++]);
+                } while(arg < nIntArgs);
+            } else if (opname == "value") {
+                int arg = 0, farg = 0;
+                do {
+                    HierarchicalEdits::IndexPath edit;
+                    int depth = t->intargs[arg++];
+                    edit.indicesInLevel.push_back(t->intargs[arg++]);
+                    for (int j = 0; j < depth-1; ++j) {
+                        edit.indicesInFace.push_back(t->intargs[arg++]);
+                    }
+                    hedits->vertexValueEdits.push_back(edit);
+                    hedits->editValues.push_back(t->floatargs[farg++]);
+                    hedits->editValues.push_back(t->floatargs[farg++]);
+                    hedits->editValues.push_back(t->floatargs[farg++]);
+                } while(arg < nIntArgs);
+            }
+        } else if (t->name == "edgeedit") {
+            const std::string & opname = t->stringargs[2];
+            //const std::string & opmodifiername = t->stringargs[0];
+            //const std::string & varname = t->stringargs[1];
+            int nIntArgs = t->intargs.size();
+            if (opname == "sharpness") {
+                int arg = 0, farg = 0;
+                do {
+                    HierarchicalEdits::IndexPath edit;
+                    int depth = t->intargs[arg++];
+                    edit.indicesInLevel.push_back(t->intargs[arg++]);
+                    for (int j = 0; j < depth-1; ++j) {
+                        edit.indicesInFace.push_back(t->intargs[arg++]);
+                    }
+                    hedits->edgeSharpnessEdits.push_back(edit);
+                    hedits->edgeSharpnesses.push_back(t->floatargs[farg++]);
+                } while(arg < nIntArgs);
+            }
+        }
+    }
+
+    if (hedits->IsEmpty()) {
+        delete hedits;
+    } else {
+        refiner.setHierarchicalEdits(hedits);
+    }
+
+    return true;
+}
+
 
 template <>
 inline void

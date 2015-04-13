@@ -22,6 +22,7 @@
 //   language governing permissions and limitations under the Apache License.
 //
 #include "../far/topologyRefiner.h"
+#include "../far/hierarchicalEdits.h"
 #include "../far/error.h"
 #include "../vtr/sparseSelector.h"
 #include "../vtr/quadRefinement.h"
@@ -52,7 +53,8 @@ TopologyRefiner::TopologyRefiner(Sdc::SchemeType schemeType, Sdc::Options scheme
     _totalEdges(0),
     _totalFaces(0),
     _totalFaceVertices(0),
-    _maxValence(0) {
+    _maxValence(0),
+    _hedits(0) {
 
     //  Need to revisit allocation scheme here -- want to use smart-ptrs for these
     //  but will probably have to settle for explicit new/delete...
@@ -69,6 +71,7 @@ TopologyRefiner::~TopologyRefiner() {
     for (int i=0; i<(int)_refinements.size(); ++i) {
         delete _refinements[i];
     }
+    if (_hedits) delete _hedits;
 }
 
 void
@@ -388,6 +391,12 @@ TopologyRefiner::RefineUniform(UniformOptions options) {
 
         appendLevel(childLevel);
         appendRefinement(*refinement);
+
+        // apply hierarchical sharpness edits and resolve indices for value edits
+        if (_hedits) {
+            _hedits->ResolveIndexPath(i, this);
+            _hedits->ApplyHierarchicalSharpnessEdit(i, this);
+        }
     }
 }
 
@@ -447,6 +456,7 @@ TopologyRefiner::RefineAdaptive(AdaptiveOptions options) {
         Vtr::SparseSelector selector(*refinement);
 
         selectFeatureAdaptiveComponents(selector);
+
         if (selector.isSelectionEmpty()) {
             _maxLevel = i - 1;
 
@@ -459,6 +469,13 @@ TopologyRefiner::RefineAdaptive(AdaptiveOptions options) {
 
         appendLevel(childLevel);
         appendRefinement(*refinement);
+
+        // apply hierarchical sharpness edits and resolve indices for value edits
+        if (_hedits) {
+            _hedits->ResolveIndexPath(i, this);
+            _hedits->ApplyHierarchicalSharpnessEdit(i, this);
+        }
+
     }
 }
 
@@ -528,7 +545,8 @@ TopologyRefiner::selectFeatureAdaptiveComponents(Vtr::SparseSelector& selector) 
         //  Testing irregular faces is only necessary at level 0, and potentially warrants
         //  separating out as the caller can detect these:
         //
-        if (faceVerts.size() != regularFaceSize) {
+        if (faceVerts.size() != regularFaceSize or
+            (_hedits and _hedits->IsIsolationRequired(level.getDepth(), face))) {
             //
             //  We need to also ensure that all adjacent faces to this are selected, so we
             //  select every face incident every vertex of the face.  This is the only place
@@ -700,6 +718,7 @@ TopologyRefiner::selectFeatureAdaptiveComponents(Vtr::SparseSelector& selector) 
         }
     }
 }
+
 
 } // end namespace Far
 

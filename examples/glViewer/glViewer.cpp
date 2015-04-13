@@ -102,8 +102,12 @@ OpenSubdiv::Osd::CpuComputeController *g_cpuComputeController = NULL;
     OpenSubdiv::Osd::GLSLComputeController *g_glslComputeController = NULL;
 #endif
 
+// for osd kernels
 #include <osd/glMesh.h>
-OpenSubdiv::Osd::GLMeshInterface *g_mesh;
+OpenSubdiv::Osd::GLMeshInterface *g_mesh = NULL;
+
+// Far GLMeshInterface impl.
+#include "farMesh.h"
 
 #include <common/vtr_utils.h>
 #include "../common/stopwatch.h"
@@ -126,13 +130,14 @@ static const char *shaderSource =
 #include <fstream>
 #include <sstream>
 
-enum KernelType { kCPU = 0,
-                  kOPENMP = 1,
-                  kTBB = 2,
-                  kCUDA = 3,
-                  kCL = 4,
-                  kGLSL = 5,
-                  kGLSLCompute = 6 };
+enum KernelType { kFAR = 0,
+                  kCPU = 1,
+                  kOPENMP = 2,
+                  kTBB = 3,
+                  kCUDA = 4,
+                  kCL = 5,
+                  kGLSL = 6,
+                  kGLSLCompute = 7 };
 
 enum DisplayStyle { kWire = 0,
                     kShaded,
@@ -203,10 +208,10 @@ std::vector<float> g_orgPositions,
 
 Scheme             g_scheme;
 
-int g_level = 2;
+int g_level = 1;
 int g_tessLevel = 1;
 int g_tessLevelMin = 1;
-int g_kernel = kCPU;
+int g_kernel = kFAR;
 float g_moveScale = 0.0f;
 
 GLuint g_queries[2] = {0, 0};
@@ -457,7 +462,9 @@ updateGeom() {
 static const char *
 getKernelName(int kernel) {
 
-         if (kernel == kCPU)
+         if (kernel == kFAR)
+        return "FAR";
+    else if (kernel == kCPU)
         return "CPU";
     else if (kernel == kOPENMP)
         return "OpenMP";
@@ -541,7 +548,13 @@ createOsdMesh(ShapeDesc const & shapeDesc, int level, int kernel, Scheme scheme=
     int numVaryingElements =
         (g_displayStyle == kVaryingColor or interleaveVarying) ? 4 : 0;
 
-    if (kernel == kCPU) {
+    if (kernel == kFAR) {
+        // hedit
+        g_mesh = new OpenSubdiv::Osd::FarMesh<3>(refiner,
+                                                 numVertexElements,
+                                                 numVaryingElements,
+                                                 level, bits);
+    } else if (kernel == kCPU) {
         if (not g_cpuComputeController) {
             g_cpuComputeController = new OpenSubdiv::Osd::CpuComputeController();
         }
@@ -1628,6 +1641,7 @@ initHUD() {
     g_hud.AddPullDownButton(shading_pulldown, "FaceVarying Color", kFaceVaryingColor, g_displayStyle==kFaceVaryingColor);
 
     int compute_pulldown = g_hud.AddPullDown("Compute (K)", 475, 10, 300, callbackKernel, 'k');
+    g_hud.AddPullDownButton(compute_pulldown, "FAR", kFAR);
     g_hud.AddPullDownButton(compute_pulldown, "CPU", kCPU);
 #ifdef OPENSUBDIV_HAS_OPENMP
     g_hud.AddPullDownButton(compute_pulldown, "OpenMP", kOPENMP);
@@ -1849,7 +1863,7 @@ int main(int argc, char ** argv) {
 #endif
 
     // activate feature adaptive tessellation if OSD supports it
-    g_adaptive = OpenSubdiv::Osd::GLDrawContext::SupportsAdaptiveTessellation();
+    g_adaptive &= OpenSubdiv::Osd::GLDrawContext::SupportsAdaptiveTessellation();
 
     initGL();
     linkDefaultProgram();
