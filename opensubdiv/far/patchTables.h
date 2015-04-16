@@ -150,6 +150,9 @@ public:
 
     /// \brief Returns the PatchParams for the patches in array 'array'
     ConstPatchParamArray const GetPatchParams(int array) const;
+
+    /// \brief Returns the sharpness index table for the patches in array 'array'
+    ConstIndexArray GetSharpnessIndices(Index arrayIndex) const;
     //@}
 
 
