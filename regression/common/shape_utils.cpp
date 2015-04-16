@@ -384,3 +384,21 @@ std::string Shape::genRIB() const {
 
     return rib.str();
 }
+
+void
+Shape::PopulatePtexIDToFaceIDMapping()
+{
+    ptexIDToFaceIDMapping.clear();
+
+    // XXX: works for catmark, bilinear. not for loop.
+    for (int i =0 ; i < (int)nvertsPerFace.size(); ++i) {
+        int nv = nvertsPerFace[i];
+        if (nv == 4) {
+            ptexIDToFaceIDMapping.push_back(i);
+        } else {
+            for (int j = 0; j < nv; ++j) {
+                ptexIDToFaceIDMapping.push_back(i);
+            }
+        }
+    }
+}

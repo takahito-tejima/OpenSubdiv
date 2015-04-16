@@ -91,6 +91,11 @@ struct Shape {
 
     int GetFVarWidth() const { return HasUV() ? 2 : 0; }
 
+    std::vector<int> const &GetPtexIDToFaceIDMapping() {
+        if (ptexIDToFaceIDMapping.empty()) PopulatePtexIDToFaceIDMapping();
+        return ptexIDToFaceIDMapping;
+    }
+
     std::vector<float>      verts;
     std::vector<float>      uvs;
     std::vector<float>      normals;
@@ -109,10 +114,13 @@ struct Shape {
         }
         return -1;
     }
+    void PopulatePtexIDToFaceIDMapping();
 
     std::string                 mtllib;
     std::vector<unsigned short> mtlbind;
     std::vector<material *>     mtls;
+
+    std::vector<int>            ptexIDToFaceIDMapping;
 };
 
 //------------------------------------------------------------------------------
