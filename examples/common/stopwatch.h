@@ -87,6 +87,9 @@ public:
         return (double) _totalElapsed / _frequency.QuadPart;
     }
 #endif
+    void Reset() {
+        _elapsed = _totalElapsed = 0;
+    }
 
 private:
 
