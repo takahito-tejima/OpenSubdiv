@@ -34,6 +34,7 @@ if (NOT NO_OPENGL)
         add_subdirectory(glStencilViewer)
         add_subdirectory(glImaging)
         add_subdirectory(farViewer)
+        add_subdirectory(raytrace)
 
         if (OPENGL_4_3_FOUND AND (NOT APPLE))
             add_subdirectory(glPaintTest)
