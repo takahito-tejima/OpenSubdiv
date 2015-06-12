@@ -85,6 +85,7 @@
 #include "catmark_tent_creases0.h"
 #include "catmark_tent_creases1.h"
 #include "catmark_tent.h"
+#include "catmark_tet.h"
 #include "catmark_torus.h"
 #include "catmark_torus_creases0.h"
 

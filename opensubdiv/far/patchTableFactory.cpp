@@ -529,7 +529,8 @@ PatchTable *
 PatchTableFactory::Create(TopologyRefiner const & refiner, Options options) {
 
     if (refiner.IsUniform()) {
-        return createUniform(refiner, options);
+        //return createUniform(refiner, options);
+        return createAdaptive(refiner, options);
     } else {
         return createAdaptive(refiner, options);
     }
