@@ -32,76 +32,76 @@
     </div>
     <div class="quickLinks">
         <ul>
-            <li><a href="intro.html">Introduction</a></li>
+            <li><a href="intro.html"><!-- Introduction -->はじめに</a></li>
                 <ul>
-                    <li><a href="license.html">License</a></li>
-                    <li><a href="getting_started.html">Getting Started</a></li>
-                    <li><a href="contributing.html">Contributing</a></li>
-                    <li><a href="cmake_build.html">Building OpenSubdiv</a></li>
-                    <li><a href="code_examples.html">Code Examples</a></li>
-                    <li><a href="roadmap.html">Roadmap</a></li>
+                    <li><a href="license.html"><!-- License -->ライセンス (en)</a></li>
+                    <li><a href="getting_started.html"><!-- Getting Started -->始めよう (en)</a></li>
+                    <li><a href="contributing.html"><!-- Contributing -->参加しよう (en)</a></li>
+                    <li><a href="cmake_build.html"><!-- Building OpenSubdiv -->ビルド方法 (en)</a></li>
+                    <li><a href="code_examples.html"><!-- Code Examples -->コード例 (en)</a></li>
+                    <li><a href="roadmap.html"><!-- Roadmap -->ロードマップ (en)</a></li>
                 </ul>
             <p></p>
-            <li><a href="intro_30.html">Release 3.0</a></li>
+            <li><a href="intro_30.html"><!-- Release 3.0 -->リリース 3.0</a></li>
                 <ul>
-                    <li><a href="intro_30.html">Overview</a></li>
-                    <li><a href="porting.html">Porting Guide: 2.0 to 3.0</a></li>
-                    <li><a href="compatibility.html">Subdivision Compatibility</a></li>
+                    <li><a href="intro_30.html"><!-- Overview -->概要</a></li>
+                    <li><a href="porting.html"><!-- Porting Guide: 2.0 to 3.0 -->2.0から3.0への移植ガイド (en)</a></li>
+                    <li><a href="compatibility.html"><!-- Subdivision Compatibility -->サブディビジョンの互換性 (en)</a></li>
                 </ul>
             <p></p>
-            <li><a href="subdivision_surfaces.html">Subdivision Surfaces</a>
+            <li><a href="subdivision_surfaces.html"><!-- Subdivision Surfaces-->サブディビジョンサーフェス</a>
                 <ul>
-                    <li><a href="subdivision_surfaces.html#introduction">Introduction</a></li>
-                    <li><a href="subdivision_surfaces.html#arbitrary-topology">Topology</a></li>
-                    <li><a href="subdivision_surfaces.html#uniform-subdivision">Uniform</a></li>
-                    <li><a href="subdivision_surfaces.html#feature-adaptive-subdivision">Feature Adaptive</a></li>
-                    <li><a href="subdivision_surfaces.html#boundary-interpolation-rules">Boundary Interpolation</a></li>
-                    <li><a href="subdivision_surfaces.html#face-varying-interpolation-rules">Face-Varying Interpolation</a></li>
-                    <li><a href="subdivision_surfaces.html#semi-sharp-creases">Semi-Sharp Creases</a></li>
-                    <li><a href="mod_notes.html">Modeling Tips</a></li>
+                    <li><a href="subdivision_surfaces.html#introduction"><!-- Introduction-->はじめに</a></li>
+                    <li><a href="subdivision_surfaces.html#arbitrary-topology"><!-- Topology -->トポロジ</a></li>
+                    <li><a href="subdivision_surfaces.html#uniform-subdivision"><!-- Uniform -->均一分割</a></li>
+                    <li><a href="subdivision_surfaces.html#feature-adaptive-subdivision"><!-- Feature Adaptive -->適応分割</a></li>
+                    <li><a href="subdivision_surfaces.html#boundary-interpolation-rules"><!-- Boundary Interpolation -->境界補間則</a></li>
+                    <li><a href="subdivision_surfaces.html#face-varying-interpolation-rules"><!-- Face-Varying Interpolation -->面変化境界補間則</a></li>
+                    <li><a href="subdivision_surfaces.html#semi-sharp-creases"><!-- Semi-Sharp Creases -->セミシャープクリース</a></li>
+                    <li><a href="mod_notes.html"><!-- Modeling Tips -->モデリングのコツ (en)</a></li>
                 </ul>
             </li>
             <p></p>
-            <li><a href="api_overview.html">OpenSubdiv User Guide</a>
+            <li><a href="api_overview.html"><!-- OpenSubdiv User Guide -->OpenSubdiv ユーザーガイド (en)</a>
                 <ul>
-                    <li><a href="api_overview.html">API Overview</a>
-                        <li><a href="sdc_overview.html">Sdc</a></li>
-                        <li><a href="vtr_overview.html">Vtr</a></li>
-                        <li><a href="far_overview.html">Far</a></li>
+                    <li><a href="api_overview.html"><!-- API Overview -->API概要 (en)</a>
+                        <li><a href="sdc_overview.html">Sdc (en)</a></li>
+                        <li><a href="vtr_overview.html">Vtr (en)</a></li>
+                        <li><a href="far_overview.html">Far (en)</a></li>
                         <ul>
-                            <li><a href="far_overview.html#far-topologyrefiner">Topology Refiner</a></li>
-                            <li><a href="far_overview.html#far-topologyrefinerfactory">Topology Refiner Factory</a></li>
-                            <li><a href="far_overview.html#far-primvarrefiner">Primvar Refiner</a></li>
-                            <li><a href="far_overview.html#far-patchtable">Patch Table</a></li>
-                            <li><a href="far_overview.html#far-stenciltable">Stencil Table</a></li>
+                            <li><a href="far_overview.html#far-topologyrefiner">Topology Refiner (en)</a></li>
+                            <li><a href="far_overview.html#far-topologyrefinerfactory">Topology Refiner Factory (en)</a></li>
+                            <li><a href="far_overview.html#far-primvarrefiner">Primvar Refiner (en)</a></li>
+                            <li><a href="far_overview.html#far-patchtable">Patch Table (en)</a></li>
+                            <li><a href="far_overview.html#far-stenciltable">Stencil Table v</a></li>
                         </ul>
-                        <li><a href="osd_overview.html">Osd</a></li>
+                        <li><a href="osd_overview.html">Osd (en)</a></li>
                         <ul>
-                            <li><a href="osd_shader_interface.html">Shader Interface</a></li>
+                            <li><a href="osd_shader_interface.html"><!-- Shader Interface-->シェーダインタフェース (en)</a></li>
                         </ul>
                     </li>
                     <p></p>
-                    <li><a href="tutorials.html">Tutorials</a>
+                    <li><a href="tutorials.html"><!-- Tutorials -->チュートリアル (en)</a>
                     <p></p>
-                    <li><a href="hbr_overview.html">Historical But Relevant</a></li>
+                    <li><a href="hbr_overview.html"><!-- Historical But Relevant -->過去の情報 (en)</a></li>
                     <ul>
-                        <li><a href="hbr_overview.html">Hbr</a></li>
+                        <li><a href="hbr_overview.html">Hbr (en)</a></li>
                         <ul>
-                            <li><a href="using_osd_hbr.html">Using Hbr</a></li>
+                            <li><a href="using_osd_hbr.html">Using Hbr (en)</a></li>
                         </ul>
-                        <li><a href="hedits.html">Hierarchical Edits</a></li>
+                        <li><a href="hedits.html"><!-- Hierarchical Edits -->階層エディット (en)</a></li>
                     </ul>
                 </ul>
             </li>
             <p></p>
-            <li><a href="additional_resources.html">Additional Resources</a>
+            <li><a href="additional_resources.html"><!-- Additional Resources -->追加情報 (en)</a>
                 <ul>
-                    <li><a href="http://graphics.pixar.com/opensubdiv/forum.html">Forum</a>
-                    <li><a href="additional_resources.html#links">Links</a>
-                    <li><a href="additional_resources.html#videos">Videos</a>
+                    <li><a href="http://graphics.pixar.com/opensubdiv/forum.html"><!-- Forum -->フォーラム</a>
+                    <li><a href="additional_resources.html#links"><!-- Links -->リンク</a>
+                    <li><a href="additional_resources.html#videos"><!-- Videos -->ビデオ</a>
                 </ul>
             <p></p>
-            <li><a href="release_notes.html">Release Notes</a>
+            <li><a href="release_notes.html"><!-- Release Notes -->リリースノート</a>
             <p></p>
             <li><a href="doxy_html/index.html" target="_blank">Doxygen</a></li>
         </ul>
