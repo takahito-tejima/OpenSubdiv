@@ -435,14 +435,16 @@ fitFrame() {
 
 union Effect {
 
-    Effect(int displayStyle_, int uvDraw_) : value(0) {
+    Effect(int displayStyle_, int uvDraw_, int loop_) : value(0) {
         displayStyle = displayStyle_;
         uvDraw = uvDraw_;
+        loop = loop_;
     }
 
     struct {
         unsigned int displayStyle:3;
         unsigned int uvDraw:1;
+        unsigned int loop:1;
     };
     int value;
 
@@ -454,7 +456,7 @@ union Effect {
 static Effect
 GetEffect(bool uvDraw = false) {
 
-    return Effect(g_displayStyle, uvDraw);
+    return Effect(g_displayStyle, uvDraw, g_scheme==kLoop);
 }
 
 // ---------------------------------------------------------------------------
@@ -503,6 +505,10 @@ public:
             ss << "#define PRIM_QUAD\n";
         } else {
             ss << "#define PRIM_TRI\n";
+        }
+
+        if (effectDesc.effect.loop) {
+            ss << "#define LOOP\n";
         }
 
         if (effectDesc.effect.uvDraw) {
