@@ -198,7 +198,7 @@ void main()
     outpt.v.Nu = (f*F-e*G)/(E*G-F*F) * dPu + (e*F-f*E)/(E*G-F*F) * dPv;
     outpt.v.Nv = (g*F-f*G)/(E*G-F*F) * dPu + (f*F-g*E)/(E*G-F*F) * dPv;
     outpt.v.Kcurvature = (e*g - f*f)/(E*G - F*F);
-    outpt.v.Hcurvature = 0.5 * (E*g - 2*F*f - G*e) / (E*G - F*F);
+    outpt.v.Hcurvature = 0.5 * (E*g - 2*F*f + G*e) / (E*G - F*F);
 #endif
 
 #if defined OSD_PATCH_ENABLE_SINGLE_CREASE
