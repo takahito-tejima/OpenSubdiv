@@ -177,8 +177,18 @@ void emit(int index, vec3 normal)
     outpt.v.patchCoord = inpt[index].v.patchCoord;
 #ifdef SMOOTH_NORMALS
     outpt.v.normal = inpt[index].v.normal;
-#else
+    outpt.v.tangent = inpt[index].v.tangent;
+    outpt.v.bitangent = inpt[index].v.bitangent;
+#if defined(OSD_COMPUTE_NORMAL_DERIVATIVES)
+    outpt.v.Nu = inpt[index].v.Nu;
+    outpt.v.Nv = inpt[index].v.Nv;
+    outpt.v.Kcurvature = inpt[index].v.Kcurvature;
+    outpt.v.Hcurvature = inpt[index].v.Hcurvature;
+#endif
+#else  // !SMOOTH_NORMALS
     outpt.v.normal = normal;
+    outpt.v.tangent = vec3(0);
+    outpt.v.bitangent = vec3(0);
 #endif
 
 #ifdef OSD_PATCH_ENABLE_SINGLE_CREASE
@@ -479,6 +489,8 @@ void
 main()
 {
     vec3 N = (gl_FrontFacing ? inpt.v.normal : -inpt.v.normal);
+    vec3 Nobj = (ModelViewInverseMatrix * vec4(inpt.v.normal, 0)).xyz;
+    vec3 Tobj = (ModelViewInverseMatrix * vec4(inpt.v.tangent, 0)).xyz;
 
 #if defined(SHADING_VARYING_COLOR)
     vec4 color = vec4(inpt.color, 1);
@@ -498,8 +510,32 @@ main()
 
     vec4 Cf = lighting(color, inpt.v.position.xyz, N);
 
+    int level = OsdGetPatchFaceLevel(OsdGetPatchParam(OsdGetPatchIndex(gl_PrimitiveID)));
+
 #if defined(SHADING_NORMAL)
-    Cf.rgb = N;
+    Cf.rgb = Nobj;
+#elif defined(SHADING_TANGENT)
+    Cf.rgb = Tobj;
+#elif defined(SHADING_NORMAL_CURVATURE_SCREEN_SPACE)
+    // rough approximation
+    vec3 pc = fwidth(inpt.v.position.xyz);
+    vec3 dN = fwidth(Nobj);
+    Cf.rgb = 0.1 * vec3(dN) / length(pc);
+
+#elif defined(SHADING_NORMAL_CURVATURE)
+    vec3 Nu = abs(inpt.v.Nu) / length(inpt.v.tangent);
+    vec3 Nv = abs(inpt.v.Nv) / length(inpt.v.bitangent);
+    Cf.rgb = 0.1 * (Nu + Nv) * 0.5;
+
+#elif defined(SHADING_MEAN_CURVATURE)
+
+    Cf.rgb = 0.1 * vec3(abs(inpt.v.Hcurvature));
+
+#elif defined(SHADING_GAUSSIAN_CURVATURE)
+
+    Cf.rgb = 0.1 * vec3(max(0, inpt.v.Kcurvature),
+                        max(0, -inpt.v.Kcurvature),
+                        0);
 #endif
 
 #if defined(GEOMETRY_OUT_WIRE) || defined(GEOMETRY_OUT_LINE)
