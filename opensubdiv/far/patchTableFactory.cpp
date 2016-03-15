@@ -448,7 +448,7 @@ PatchParam *
 PatchTableFactory::computePatchParam(
     TopologyRefiner const & refiner, PtexIndices const &ptexIndices,
     int depth, Vtr::Index faceIndex, int boundaryMask, 
-    int transitionMask, PatchParam *param) {
+    int transitionMask, PatchParam *param, bool endcap) {
 
     if (param == NULL) return NULL;
 
@@ -498,7 +498,7 @@ PatchTableFactory::computePatchParam(
         --depth;
     }
 
-    param->Set(ptexIndex, (short)u, (short)v, (unsigned short) depth, nonquad,
+    param->Set(ptexIndex, (short)u, (short)v, (unsigned short) depth, nonquad, endcap,
                (unsigned short) boundaryMask, (unsigned short) transitionMask);
 
     return ++param;
@@ -1243,13 +1243,15 @@ PatchTableFactory::populateAdaptivePatches(
                 }
                 case Options::ENDCAP_BSPLINE_BASIS:
                 {
+                    int pinnedEdgeMask = 0;
                     ConstIndexArray cvs = endCapBSpline->GetPatchPoints(
-                        level, faceIndex, levelPatchTags, levelVertOffset);
+                        level, faceIndex, levelPatchTags, levelVertOffset, &pinnedEdgeMask);
 
                     for (int j = 0; j < cvs.size(); ++j) iptrs.R[j] = cvs[j];
                     iptrs.R += cvs.size();
                     pptrs.R = computePatchParam(
-                        refiner, ptexIndices, i, faceIndex, /*boundary*/0, /*transition*/0, pptrs.R);
+                        refiner, ptexIndices, i, faceIndex, /*boundary*/0,
+                        /*transition*/pinnedEdgeMask, pptrs.R, true);
                     if (sptrs.R) *sptrs.R++ = assignSharpnessIndex(0, table->_sharpnessValues);
                     fofss.R += gatherFVarData(context,
                                               i, faceIndex, levelFaceOffset,

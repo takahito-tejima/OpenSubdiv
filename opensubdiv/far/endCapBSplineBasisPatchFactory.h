@@ -78,10 +78,12 @@ public:
     ///
     /// @param levelVertOffset  relative offset of patch vertex indices
     ///
+    /// @param pinnedEdgeMaskOut output edge mask for pinning linear normals
+    ///
     ConstIndexArray GetPatchPoints(
         Vtr::internal::Level const * level, Index faceIndex,
         PatchTableFactory::PatchFaceTag const * levelPatchTags,
-        int levelVertOffset);
+        int levelVertOffset, int *pinnedEdgeMaskOut=NULL);
 
 private:
     ConstIndexArray getPatchPointsFromGregoryBasis(

@@ -171,6 +171,10 @@ void main()
     ivec3 patchParam = inpt[0].v.patchParam;
     OsdEvalPatchBezier(patchParam, UV, cv, P, dPu, dPv, N, dNu, dNv);
 
+#ifdef OSD_STITCH_BSPLINE_ENDCAP_NORMALS
+    N = OsdStitchEndcapNormal(patchParam, UV, cv, N);
+#endif
+ 
     // all code below here is client code
     outpt.v.position = OsdModelViewMatrix() * vec4(P, 1.0f);
     outpt.v.normal = (OsdModelViewMatrix() * vec4(N, 0.0f)).xyz;
@@ -183,6 +187,7 @@ void main()
 #if defined OSD_PATCH_ENABLE_SINGLE_CREASE
     outpt.vSegments = cv[0].vSegments;
 #endif
+
 
     outpt.v.tessCoord = UV;
     outpt.v.patchCoord = OsdInterpolatePatchCoord(UV, patchParam);

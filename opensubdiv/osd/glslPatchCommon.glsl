@@ -177,7 +177,13 @@ int OsdGetPatchBoundaryMask(ivec3 patchParam)
 
 int OsdGetPatchTransitionMask(ivec3 patchParam)
 {
-    return ((patchParam.x >> 28) & 0xf);
+//    return ((patchParam.x >> 28) & 0xf);
+    return ((patchParam.x >> 28) & 0xf) * (1-((patchParam.y >> 5) & 1));
+}
+
+int OsdGetPatchPinnedEdgeMask(ivec3 patchParam)
+{
+    return ((patchParam.x >> 28) & 0xf) * ((patchParam.y >> 5) &1);
 }
 
 ivec2 OsdGetPatchFaceUV(ivec3 patchParam)
@@ -1333,6 +1339,56 @@ OsdEvalPatchBezier(ivec3 patchParam, vec2 UV,
     dNu = vec3(0);
     dNv = vec3(0);
 #endif
+}
+
+// ----------------------------------------------------------------------------
+// for bspline endcap normal stitching
+// ----------------------------------------------------------------------------
+vec3
+OsdComputeBezierLinearNormal(ivec3 patchParam, vec2 UV,
+                             OsdPerPatchVertexBezier cv[16])
+{
+    // Bezier patch
+    //
+    //   12---13---14---15
+    //    |    |    |    |
+    //    |    |    |    |
+    //    8----9---10---11
+    //    |    |    |    |
+    //    |    |    |    |
+    //    4----5----6----7
+    //    |    |    |    |
+    //    |    |    |    |
+    //    0----1----2----3
+
+    // compute (exact) normals on the corners
+    vec3 N0 = normalize(cross(cv[ 1].P-cv[ 0].P, cv[ 4].P-cv[ 0].P));
+    vec3 N1 = normalize(cross(cv[ 7].P-cv[ 3].P, cv[ 2].P-cv[ 3].P));
+    vec3 N2 = normalize(cross(cv[14].P-cv[15].P, cv[11].P-cv[15].P));
+    vec3 N3 = normalize(cross(cv[ 8].P-cv[12].P, cv[13].P-cv[12].P));
+
+    // bilinear interpolation of the corner normals
+    return normalize(mix(mix(N0, N1, UV.x),
+                         mix(N3, N2, UV.x), UV.y));
+}
+
+vec3
+OsdStitchEndcapNormal(ivec3 patchParam, vec2 UV,
+                      OsdPerPatchVertexBezier cv[16], vec3 N)
+{
+    int pinnedEdgeMask = OsdGetPatchPinnedEdgeMask(patchParam);
+    if (pinnedEdgeMask != 0) {
+        if (UV.x == 0 && (UV.y != 0 && UV.y != 1) && (pinnedEdgeMask & 8) != 0) {
+            N = OsdComputeBezierLinearNormal(patchParam, vec2(0, UV.y), cv);
+        } else if (UV.y == 0 && (UV.x != 0 && UV.x != 1) && (pinnedEdgeMask & 1) != 0) {
+            N = OsdComputeBezierLinearNormal(patchParam, vec2(UV.x, 0), cv);
+        } else if (UV.x == 1 && (UV.y != 0 && UV.y != 1) && (pinnedEdgeMask & 2) != 0) {
+            N = OsdComputeBezierLinearNormal(patchParam, vec2(1, UV.y), cv);
+        } else if (UV.y == 1 && (UV.x != 0 && UV.x != 1) && (pinnedEdgeMask & 4) != 0) {
+            N = OsdComputeBezierLinearNormal(patchParam, vec2(UV.x, 1), cv);
+        }
+    }
+    return N;
 }
 
 // ----------------------------------------------------------------------------

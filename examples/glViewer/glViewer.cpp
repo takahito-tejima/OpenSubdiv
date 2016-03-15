@@ -162,7 +162,8 @@ enum HudCheckBox { kHUD_CB_DISPLAY_CONTROL_MESH_EDGES,
                    kHUD_CB_FREEZE,
                    kHUD_CB_DISPLAY_PATCH_COUNTS,
                    kHUD_CB_ADAPTIVE,
-                   kHUD_CB_SINGLE_CREASE_PATCH };
+                   kHUD_CB_SINGLE_CREASE_PATCH,
+                   kHUD_CB_STITCH_ENDCAP_NORMALS };
 
 int g_currentShape = 0;
 
@@ -182,6 +183,7 @@ int   g_fullscreen = 0,
       g_adaptive = 1,
       g_endCap = kEndCapBSplineBasis,
       g_singleCreasePatch = 1,
+      g_stitchEndcapNormals = 0,
       g_mbutton[3] = {0, 0, 0},
       g_running = 1;
 
@@ -634,7 +636,8 @@ fitFrame() {
 
 union Effect {
     Effect(int displayStyle_, int shadingMode_, int screenSpaceTess_,
-           int fractionalSpacing_, int patchCull_, int singleCreasePatch_)
+           int fractionalSpacing_, int patchCull_, int singleCreasePatch_,
+           int stitchEndcapNormals_)
         : value(0) {
         displayStyle = displayStyle_;
         shadingMode = shadingMode_;
@@ -642,6 +645,7 @@ union Effect {
         fractionalSpacing = fractionalSpacing_;
         patchCull = patchCull_;
         singleCreasePatch = singleCreasePatch_;
+        stitchEndcapNormals = stitchEndcapNormals_;
     }
 
     struct {
@@ -651,6 +655,7 @@ union Effect {
         unsigned int fractionalSpacing:1;
         unsigned int patchCull:1;
         unsigned int singleCreasePatch:1;
+        unsigned int stitchEndcapNormals:1;
     };
     int value;
 
@@ -667,7 +672,8 @@ GetEffect()
                   g_screenSpaceTess,
                   g_fractionalSpacing,
                   g_patchCull,
-                  g_singleCreasePatch);
+                  g_singleCreasePatch,
+                  g_stitchEndcapNormals);
 }
 
 // ---------------------------------------------------------------------------
@@ -730,6 +736,10 @@ public:
         // for legacy gregory
         ss << "#define OSD_MAX_VALENCE " << effectDesc.maxValence << "\n";
         ss << "#define OSD_NUM_ELEMENTS " << effectDesc.numElements << "\n";
+
+        if (effectDesc.effect.stitchEndcapNormals) {
+            ss << "#define OSD_STITCH_BSPLINE_ENDCAP_NORMALS\n";
+        }
 
         // display styles
         switch (effectDesc.effect.displayStyle) {
@@ -1430,6 +1440,9 @@ callbackCheckBox(bool checked, int button) {
     case kHUD_CB_DISPLAY_PATCH_COUNTS:
         g_displayPatchCounts = checked;
         break;
+    case kHUD_CB_STITCH_ENDCAP_NORMALS:
+        g_stitchEndcapNormals = checked;
+        return;
     }
 }
 
@@ -1533,9 +1546,11 @@ initHUD() {
                           10, 190, callbackCheckBox, kHUD_CB_ADAPTIVE, '`');
         g_hud.AddCheckBox("Single Crease Patch (S)", g_singleCreasePatch!=0,
                           10, 210, callbackCheckBox, kHUD_CB_SINGLE_CREASE_PATCH, 's');
+        g_hud.AddCheckBox("Stitch Endcap Normals (U)", g_stitchEndcapNormals!=0,
+                          10, 230, callbackCheckBox, kHUD_CB_STITCH_ENDCAP_NORMALS, 'u');
 
         int endcap_pulldown = g_hud.AddPullDown(
-            "End cap (E)", 10, 230, 200, callbackEndCap, 'e');
+            "End cap (E)", 10, 250, 200, callbackEndCap, 'e');
         g_hud.AddPullDownButton(endcap_pulldown,"None",
                                 kEndCapNone,
                                 g_endCap == kEndCapNone);

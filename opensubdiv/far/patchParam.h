@@ -53,7 +53,8 @@ namespace Far {
 ///  -----------|:----:|------------------------------------------------------
 ///  level      | 4    | the subdivision level of the patch
 ///  nonquad    | 1    | whether the patch is the child of a non-quad face
-///  unused     | 3    | unused
+///  endcap     | 1    | whether the patch is an endcap or not
+///  unused     | 2    | unused
 ///  boundary   | 4    | boundary edge mask encoding
 ///  v          | 10   | log2 value of u parameter at first patch corner
 ///  u          | 10   | log2 value of v parameter at first patch corner
@@ -77,7 +78,13 @@ struct PatchParam {
     ///
     void Set( Index faceid, short u, short v,
               unsigned short depth, bool nonquad ,
-              unsigned short boundary, unsigned short transition );
+              unsigned short boundary, unsigned short transition) {
+        Set(faceid, u, v, depth, nonquad, /*endcap=*/false, boundary, transition);
+    }
+
+    void Set( Index faceid, short u, short v,
+              unsigned short depth, bool nonquad , bool endcap,
+              unsigned short boundary, unsigned short transition);
 
     /// \brief Resets everything to 0
     void Clear() { field0 = field1 = 0; }
@@ -127,14 +134,15 @@ typedef Vtr::ConstArray<PatchParam> ConstPatchParamArray;
 
 inline void
 PatchParam::Set( Index faceid, short u, short v,
-                 unsigned short depth, bool nonquad,
-                 unsigned short boundary, unsigned short transition ) {
+                 unsigned short depth, bool nonquad, bool endcap,
+                 unsigned short boundary, unsigned short transition) {
     field0 = (((unsigned int)faceid) & 0xfffffff) |
              ((transition & 0xf) << 28);
     field1 = ((u & 0x3ff) << 22) |
              ((v & 0x3ff) << 12) |
              ((boundary & 0xf) << 8) |
              ((nonquad ? 1:0) << 4) |
+             ((endcap ? 1:0) << 5) |
              (nonquad ? depth+1 : depth);
 }
 

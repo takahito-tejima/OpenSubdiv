@@ -133,6 +133,7 @@ enum HudCheckBox { HUD_CB_ADAPTIVE,
                    HUD_CB_VIEW_LOD,
                    HUD_CB_FRACTIONAL_SPACING,
                    HUD_CB_PATCH_CULL,
+                   HUD_CB_STITCH_ENDCAP_NORMALS,
                    HUD_CB_IBL,
                    HUD_CB_BLOOM,
                    HUD_CB_SEAMLESS_MIPMAP,
@@ -171,6 +172,9 @@ enum NormalType { NORMAL_SURFACE,
                   NORMAL_BIQUADRATIC,
                   NORMAL_BIQUADRATIC_WG };
 
+enum EndCap      { kEndCapNone = 0,
+                   kEndCapBSplineBasis,
+                   kEndCapGregoryBasis };
 //-----------------------------------------------------------------------------
 int   g_frame = 0,
       g_repeatCount = 0;
@@ -180,6 +184,7 @@ int   g_fullscreen = 0,
       g_wire = DISPLAY_SHADED,
       g_drawNormals = 0,
       g_mbutton[3] = {0, 0, 0},
+      g_endCap = kEndCapBSplineBasis,
       g_level = 1,
       g_tessLevel = 2,
       g_kernel = kCPU,
@@ -198,6 +203,7 @@ float g_moveScale = 0.0f,
 bool  g_adaptive = false,
       g_yup = false,
       g_patchCull = true,
+      g_stitchEndcapNormals = false,
       g_screenSpaceTess = true,
       g_fractionalSpacing = true,
       g_ibl = false,
@@ -532,6 +538,7 @@ union Effect {
         int occlusion:1;
         int specular:1;
         int patchCull:1;
+        int stitchEndcapNormals:1;
         int screenSpaceTess:1;
         int fractionalSpacing:1;
         int ibl:1;
@@ -598,6 +605,9 @@ public:
         }
         if (effectDesc.effect.patchCull) {
             ss << "#define OSD_ENABLE_PATCH_CULL\n";
+        }
+        if (effectDesc.effect.stitchEndcapNormals) {
+            ss << "#define OSD_STITCH_BSPLINE_ENDCAP_NORMALS\n";
         }
 
         // for legacy gregory
@@ -905,8 +915,10 @@ createOsdMesh(int level, int kernel) {
 
     OpenSubdiv::Osd::MeshBitset bits;
     bits.set(OpenSubdiv::Osd::MeshAdaptive, doAdaptive);
-    bits.set(OpenSubdiv::Osd::MeshEndCapGregoryBasis, true);
 
+    bits.set(OpenSubdiv::Osd::MeshEndCapBSplineBasis, g_endCap == kEndCapBSplineBasis);
+    bits.set(OpenSubdiv::Osd::MeshEndCapGregoryBasis, g_endCap == kEndCapGregoryBasis);
+    
     int numVertexElements = g_adaptive ? 3 : 6;
     int numVaryingElements = 0;
 
@@ -1268,6 +1280,7 @@ drawModel() {
         effect.normal = g_normal;
         effect.specular = g_specular;
         effect.patchCull = g_patchCull;
+        effect.stitchEndcapNormals = g_stitchEndcapNormals;
         effect.screenSpaceTess = g_screenSpaceTess;
         effect.fractionalSpacing = g_fractionalSpacing;
         effect.ibl = g_ibl;
@@ -1502,6 +1515,12 @@ void uninitGL() {
 
 //------------------------------------------------------------------------------
 static void
+callbackEndCap(int endCap) {
+    g_endCap = endCap;
+    createOsdMesh(g_level, g_kernel);
+}
+
+static void
 callbackWireframe(int b) {
     g_wire = b;
 }
@@ -1583,6 +1602,9 @@ callbackCheckBox(bool checked, int button) {
         break;
     case HUD_CB_PATCH_CULL:
         g_patchCull = checked;
+        break;
+    case HUD_CB_STITCH_ENDCAP_NORMALS:
+        g_stitchEndcapNormals = checked;
         break;
     case HUD_CB_IBL:
         g_ibl = checked;
@@ -1887,13 +1909,28 @@ int main(int argc, char ** argv) {
                       10, 110, callbackCheckBox, HUD_CB_BLOOM, 'y');
     g_hud.AddCheckBox("Freeze (spc)", g_freeze,
                       10, 130, callbackCheckBox, HUD_CB_FREEZE, ' ');
+    g_hud.AddCheckBox("Stitch endcap normals (U)",  g_stitchEndcapNormals,
+                      10, 150, callbackCheckBox, HUD_CB_STITCH_ENDCAP_NORMALS, 'u');
 
     g_hud.AddRadioButton(HUD_RB_SCHEME, "CATMARK", true, 10, 190, callbackScheme, 0);
     g_hud.AddRadioButton(HUD_RB_SCHEME, "BILINEAR", false, 10, 210, callbackScheme, 1);
 
-    if (GLUtils::SupportsAdaptiveTessellation())
+    if (GLUtils::SupportsAdaptiveTessellation()) {
         g_hud.AddCheckBox("Adaptive (`)", g_adaptive,
                           10, 300, callbackCheckBox, HUD_CB_ADAPTIVE, '`');
+
+        int endcap_pulldown = g_hud.AddPullDown(
+            "End cap (E)", 10, 230, 200, callbackEndCap, 'e');
+        g_hud.AddPullDownButton(endcap_pulldown,"None",
+                                kEndCapNone,
+                                g_endCap == kEndCapNone);
+        g_hud.AddPullDownButton(endcap_pulldown, "BSpline",
+                                kEndCapBSplineBasis,
+                                g_endCap == kEndCapBSplineBasis);
+        g_hud.AddPullDownButton(endcap_pulldown, "GregoryBasis",
+                                kEndCapGregoryBasis,
+                                g_endCap == kEndCapGregoryBasis);
+    }
 
     for (int i = 1; i < 8; ++i) {
         char level[16];

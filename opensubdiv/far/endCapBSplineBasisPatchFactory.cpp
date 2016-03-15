@@ -78,12 +78,23 @@ ConstIndexArray
 EndCapBSplineBasisPatchFactory::GetPatchPoints(
     Vtr::internal::Level const * level, Index thisFace,
     PatchTableFactory::PatchFaceTag const *levelPatchTags,
-    int levelVertOffset) {
+    int levelVertOffset, int *pinnedEdgeMaskOut) {
 
     Vtr::ConstIndexArray facePoints = level->getFaceVertices(thisFace);
     PatchTableFactory::PatchFaceTag patchTag = levelPatchTags[thisFace];
+    const int edgeMasks[] = { (8|1), (1|2), (2|4), (4|8) };
     // if it's boundary, fallback to use GregoryBasis
     if (patchTag._boundaryCount > 0) {
+        if (pinnedEdgeMaskOut) {
+            for (int i = 0; i < 4; ++i) {
+                int valence = level->getVertexFaces(facePoints[i]).size();
+                if (valence != 4) {
+                    *pinnedEdgeMaskOut |= edgeMasks[i];
+                }
+            }
+            // boundary edges don't need to be pinned
+            *pinnedEdgeMaskOut &= ~patchTag._boundaryMask;
+        }
         return getPatchPointsFromGregoryBasis(
             level, thisFace, facePoints, levelVertOffset);
     }
@@ -96,6 +107,12 @@ EndCapBSplineBasisPatchFactory::GetPatchPoints(
         int valence = level->getVertexFaces(facePoints[i]).size();
         if (valence != 4) {
             if (irregular != -1) {
+                // if there're more than 1 extraordinary vertices,
+                // they should be diagonal (we isolate at least 1 level)
+                if (pinnedEdgeMaskOut) {
+                    *pinnedEdgeMaskOut
+                        = edgeMasks[irregular] | edgeMasks[(irregular+2)%4];
+                }
                 // more than one extraoridinary vertices.
                 // fallback to use GregoryBasis
                 return getPatchPointsFromGregoryBasis(
@@ -103,6 +120,10 @@ EndCapBSplineBasisPatchFactory::GetPatchPoints(
             }
             irregular = i;
         }
+    }
+
+    if (pinnedEdgeMaskOut) {
+        *pinnedEdgeMaskOut = edgeMasks[irregular];
     }
 
     // faster B-spline endcap generation
