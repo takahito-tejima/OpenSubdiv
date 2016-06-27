@@ -33,6 +33,7 @@ if (NOT NO_OPENGL)
         add_subdirectory(glFVarViewer)
         add_subdirectory(glStencilViewer)
         add_subdirectory(glImaging)
+        add_subdirectory(glRayCastViewer)
         add_subdirectory(farViewer)
 
         if (OPENGL_4_3_FOUND AND (NOT APPLE))
