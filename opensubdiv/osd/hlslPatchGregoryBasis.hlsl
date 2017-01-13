@@ -99,8 +99,8 @@ void ds_main_patches(
     in float2 UV : SV_DomainLocation,
     out OutputVertex output )
 {
-    float3 P = float3(0,0,0), dPu = float3(0,0,0), dPv = float3(0,0,0);
-    float3 N = float3(0,0,0), dNu = float3(0,0,0), dNv = float3(0,0,0);
+    float3 P = float3(0,0,0), dPs = float3(0,0,0), dPt = float3(0,0,0);
+    float3 dPss = float3(0,0,0), dPst = float3(0,0,0), dPtt = float3(0,0,0);
 
     float3 cv[20];
     for (int i = 0; i < 20; ++i) {
@@ -108,16 +108,22 @@ void ds_main_patches(
     }
 
     int3 patchParam = patch[0].patchParam;
-    OsdEvalPatchGregory(patchParam, UV, cv, P, dPu, dPv, N, dNu, dNv);
+    OsdEvalPatchGregory(patchParam, UV, cv, P, dPs, dPt, dPss, dPst, dPtt);
+
+    int level = OsdGetPatchFaceLevel(patchParam);
+    float3 n = cross(dPs, dPt);
+    float3 N = normalize(n);
 
     // all code below here is client code
     output.position = mul(OsdModelViewMatrix(), float4(P, 1.0f));
     output.normal = mul(OsdModelViewMatrix(), float4(N, 0.0f)).xyz;
-    output.tangent = mul(OsdModelViewMatrix(), float4(dPu, 0.0f)).xyz;
-    output.bitangent = mul(OsdModelViewMatrix(), float4(dPv, 0.0f)).xyz;
-#ifdef OSD_COMPUTE_NORMAL_DERIVATIVES
-    output.Nu = dNu;
-    output.Nv = dNv;
+
+    output.dPs = dPs*level;
+    output.dPt = dPt*level;
+#ifdef OSD_COMPUTE_SECOND_DERIVATIVES
+    output.dPss = dPss*level*level;
+    output.dPst = dPst*level*level;
+    output.dPtt = dPtt*level*level;
 #endif
 
     output.patchCoord = OsdInterpolatePatchCoord(UV, patchParam);

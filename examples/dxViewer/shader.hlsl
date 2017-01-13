@@ -21,6 +21,7 @@
 //   KIND, either express or implied. See the Apache License for the specific
 //   language governing permissions and limitations under the Apache License.
 //
+#line 24
 
 struct OutputPointVertex {
     float4 positionOut : SV_Position;
@@ -73,7 +74,8 @@ void vs_main( in InputVertex input,
 {
     output.positionOut = mul(ModelViewProjectionMatrix, input.position);
     output.position = mul(ModelViewMatrix, input.position);
-    output.normal = mul(ModelViewMatrix,float4(input.normal, 0)).xyz;
+    output.normal = mul(transpose(ModelViewInverseMatrix),
+                        float4(input.normal, 0)).xyz;
 }
 
 // ---------------------------------------------------------------------------
@@ -442,13 +444,33 @@ ps_main( in OutputVertex input,
          bool isFrontFacing : SV_IsFrontFace,
          out float4 colorOut : SV_Target )
 {
+    float3 N = (isFrontFacing ? input.normal : -input.normal);
+    float3 Nobj = mul(ModelViewInverseMatrix, float4(input.normal, 0)).xyz;
+
+#ifdef OSD_COMPUTE_SECOND_DERIVATIVES
+    float3 dPs = input.dPs;
+    float3 dPt = input.dPt;
+    float3 dPss = input.dPss;
+    float3 dPst = input.dPst;
+    float3 dPtt = input.dPtt;
+    float3  n = normalize(cross(dPs, dPt));
+    float E = dot(dPs, dPs);
+    float F = dot(dPs, dPt);
+    float G = dot(dPt, dPt);
+    float e = dot(n, dPss);
+    float f = dot(n, dPst);
+    float g = dot(n, dPtt);
+    float3 Ns = (f*F-e*G)/(E*G-F*F) * dPs + (e*F-f*E)/(E*G-F*F) * dPt;
+    float3 Nt = (g*F-f*G)/(E*G-F*F) * dPs + (f*F-g*E)/(E*G-F*F) * dPt;
+    float Ck = (e*g - f*f)/(E*G - F*F);
+    float Ch = 0.5 * (E*g - 2*F*f + G*e) / (E*G - F*F);
+#endif
+
+#if defined(SHADING_PATCH_TYPE)
     float2 vSegments = float2(0,0);
 #ifdef OSD_PATCH_ENABLE_SINGLE_CREASE
     vSegments = input.vSegments;
 #endif
-
-
-#if defined(SHADING_PATCH_TYPE)
     float4 color = getAdaptivePatchColor(
         OsdGetPatchParam(OsdGetPatchIndex(primitiveID)), vSegments);
 #elif defined(SHADING_PATCH_COORD)
@@ -459,11 +481,23 @@ ps_main( in OutputVertex input,
     float4 color = float4(1, 1, 1, 1);
 #endif
 
-    float3 N = (isFrontFacing ? input.normal : -input.normal);
     float4 Cf = lighting(color, input.position.xyz, N);
 
 #if defined(SHADING_NORMAL)
     Cf.rgb = N;
+#elif defined(SHADING_TANGENT)
+    Cf.rgb = (input.dPs + input.dPt) * 0.5;
+#elif defined(SHADING_NORMAL_CURVATURE_SCREEN_SPACE)
+    float3 pc = fwidth(input.position.xyz);
+    float3 dN = fwidth(Nobj);
+    Cf.rgb = 0.1 * dN / length(pc);
+#elif defined(SHADING_NORMAL_CURVATURE)
+    float3 Np = max(abs(Ns/length(dPs)), abs(Nt/length(dPt)));
+    Cf.rgb = 0.1 * Np;
+#elif defined(SHADING_MEAN_CURVATURE)
+    Cf.rgb = 0.1 * float3(abs(Ch), abs(Ch), abs(Ch));
+#elif defined(SHADING_GAUSSIAN_CURVATURE)
+    Cf.rgb = 0.1 * float3(max(0, Ck), max(0, -Ck), 0);
 #endif
 
     colorOut = edgeColor(Cf, input.edgeDistance);

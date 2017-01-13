@@ -98,7 +98,13 @@ enum DisplayStyle { kDisplayStyleWire = 0,
 enum ShadingMode { kShadingMaterial,
                    kShadingPatchType,
                    kShadingPatchCoord,
-                   kShadingNormal };
+                   kShadingNormal,
+                   kShadingTangent,
+                   kShadingNormalCurvatureScreenSpace,
+                   kShadingNormalCurvature,
+                   kShadingMeanCurvature,
+                   kShadingGaussianCurvature };
+
 
 enum EndCap      { kEndCapNone = 0,
                    kEndCapBSplineBasis,
@@ -554,6 +560,24 @@ public:
             break;
         case kShadingNormal:
             ss << "#define SHADING_NORMAL\n";
+            break;
+        case kShadingTangent:
+            ss << "#define SHADING_TANGENT\n";
+            break;
+        case kShadingNormalCurvatureScreenSpace:
+            ss << "#define SHADING_NORMAL_CURVATURE_SCREEN_SPACE\n";
+            break;
+        case kShadingNormalCurvature:
+            ss << "#define OSD_COMPUTE_SECOND_DERIVATIVES\n";
+            ss << "#define SHADING_NORMAL_CURVATURE\n";
+            break;
+        case kShadingMeanCurvature:
+            ss << "#define OSD_COMPUTE_SECOND_DERIVATIVES\n";
+            ss << "#define SHADING_MEAN_CURVATURE\n";
+            break;
+        case kShadingGaussianCurvature:
+            ss << "#define OSD_COMPUTE_SECOND_DERIVATIVES\n";
+            ss << "#define SHADING_GAUSSIAN_CURVATURE\n";
             break;
         }
 
@@ -1206,6 +1230,21 @@ initHUD() {
     g_hud->AddPullDownButton(shading_pulldown, "Normal",
                             kShadingNormal,
                             g_shadingMode == kShadingNormal);
+    g_hud->AddPullDownButton(shading_pulldown, "Tangent",
+                            kShadingTangent,
+                            g_shadingMode == kShadingTangent);
+    g_hud->AddPullDownButton(shading_pulldown, "Normal Curv. (Screen Space)",
+                            kShadingNormalCurvatureScreenSpace,
+                            g_shadingMode == kShadingNormalCurvatureScreenSpace);
+    g_hud->AddPullDownButton(shading_pulldown, "Normal Curv.",
+                            kShadingNormalCurvature,
+                            g_shadingMode == kShadingNormalCurvature);
+    g_hud->AddPullDownButton(shading_pulldown, "Mean Curv.",
+                            kShadingMeanCurvature,
+                            g_shadingMode == kShadingMeanCurvature);
+    g_hud->AddPullDownButton(shading_pulldown, "Gaussian Curv.",
+                            kShadingGaussianCurvature,
+                            g_shadingMode == kShadingGaussianCurvature);
 
     int y = 10;
     g_hud->AddCheckBox("Control edges (H)",

@@ -177,8 +177,22 @@ void emit(int index, vec3 normal)
     outpt.v.patchCoord = inpt[index].v.patchCoord;
 #ifdef SMOOTH_NORMALS
     outpt.v.normal = inpt[index].v.normal;
-#else
+    outpt.v.dPs = inpt[index].v.dPs;
+    outpt.v.dPt = inpt[index].v.dPt;
+#if defined(OSD_COMPUTE_SECOND_DERIVATIVES)
+    outpt.v.dPss = inpt[index].v.dPss;
+    outpt.v.dPst = inpt[index].v.dPst;
+    outpt.v.dPtt = inpt[index].v.dPtt;
+#endif
+#else  // !SMOOTH_NORMALS
     outpt.v.normal = normal;
+    outpt.v.dPs = vec3(0);
+    outpt.v.dPt = vec3(0);
+#if defined(OSD_COMPUTE_SECOND_DERIVATIVES)
+    outpt.v.dPss = vec3(0);
+    outpt.v.dPst = vec3(0);
+    outpt.v.dPtt = vec3(0);
+#endif
 #endif
 
 #ifdef OSD_PATCH_ENABLE_SINGLE_CREASE
@@ -479,6 +493,26 @@ void
 main()
 {
     vec3 N = (gl_FrontFacing ? inpt.v.normal : -inpt.v.normal);
+    vec3 Nobj = (ModelViewInverseMatrix * vec4(inpt.v.normal, 0)).xyz;
+
+#ifdef OSD_COMPUTE_SECOND_DERIVATIVES
+    vec3 dPs = inpt.v.dPs;
+    vec3 dPt = inpt.v.dPt;
+    vec3 dPss = inpt.v.dPss;
+    vec3 dPst = inpt.v.dPst;
+    vec3 dPtt = inpt.v.dPtt;
+    vec3  n = normalize(cross(dPs, dPt));
+    float E = dot(dPs, dPs);
+    float F = dot(dPs, dPt);
+    float G = dot(dPt, dPt);
+    float e = dot(n, dPss);
+    float f = dot(n, dPst);
+    float g = dot(n, dPtt);
+    vec3 Ns = (f*F-e*G)/(E*G-F*F) * dPs + (e*F-f*E)/(E*G-F*F) * dPt;
+    vec3 Nt = (g*F-f*G)/(E*G-F*F) * dPs + (f*F-g*E)/(E*G-F*F) * dPt;
+    float Ck = (e*g - f*f)/(E*G - F*F);
+    float Ch = 0.5 * (E*g - 2*F*f + G*e) / (E*G - F*F);
+#endif
 
 #if defined(SHADING_VARYING_COLOR)
     vec4 color = vec4(inpt.color, 1);
@@ -499,7 +533,26 @@ main()
     vec4 Cf = lighting(color, inpt.v.position.xyz, N);
 
 #if defined(SHADING_NORMAL)
-    Cf.rgb = N;
+    Cf.rgb = Nobj;
+#elif defined(SHADING_TANGENT)
+    Cf.rgb = (inpt.v.dPs + inpt.v.dPt) * 0.5;
+#elif defined(SHADING_NORMAL_CURVATURE_SCREEN_SPACE)
+    // rough approximation
+    vec3 pc = fwidth(inpt.v.position.xyz);
+    vec3 dN = fwidth(Nobj);
+    Cf.rgb = 0.1 * vec3(dN) / length(pc);
+
+#elif defined(SHADING_NORMAL_CURVATURE)
+    vec3 Np = max(abs(Ns/length(dPs)), abs(Nt/length(dPt)));
+    Cf.rgb = 0.1 * Np;
+
+#elif defined(SHADING_MEAN_CURVATURE)
+
+    Cf.rgb = 0.1 * vec3(abs(Ch));
+
+#elif defined(SHADING_GAUSSIAN_CURVATURE)
+
+    Cf.rgb = 0.1 * vec3(max(0, Ck), max(0, -Ck), 0);
 #endif
 
 #if defined(GEOMETRY_OUT_WIRE) || defined(GEOMETRY_OUT_LINE)

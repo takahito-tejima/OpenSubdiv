@@ -103,13 +103,14 @@ struct ControlVertex {
 struct OutputVertex {
     vec4 position;
     vec3 normal;
-    vec3 tangent;
-    vec3 bitangent;
+    vec3 dPs;
+    vec3 dPt;
     centroid vec4 patchCoord; // u, v, faceLevel, faceId
     centroid vec2 tessCoord; // tesscoord.st
-#if defined OSD_COMPUTE_NORMAL_DERIVATIVES
-    vec3 Nu;
-    vec3 Nv;
+#if defined OSD_COMPUTE_SECOND_DERIVATIVES
+    vec3 dPss;
+    vec3 dPst;
+    vec3 dPtt;
 #endif
 };
 
@@ -389,10 +390,10 @@ OsdUnivar4x4(in float u, out float B[4], out float D[4])
     B[2] = t * A1 + s * A2;
     B[3] = t * A2;
 
-    D[0] =    - A0;
-    D[1] = A0 - A1;
-    D[2] = A1 - A2;
-    D[3] = A2;
+    D[0] = 3.0f * (   - A0);
+    D[1] = 3.0f * (A0 - A1);
+    D[2] = 3.0f * (A1 - A2);
+    D[3] = 3.0f * (A2     );
 }
 
 void
@@ -410,19 +411,19 @@ OsdUnivar4x4(in float u, out float B[4], out float D[4], out float C[4])
     B[2] = t * A1 + s * A2;
     B[3] = t * A2;
 
-    D[0] =    - A0;
-    D[1] = A0 - A1;
-    D[2] = A1 - A2;
-    D[3] = A2;
+    D[0] = 3.0f * (   - A0);
+    D[1] = 3.0f * (A0 - A1);
+    D[2] = 3.0f * (A1 - A2);
+    D[3] = 3.0f * (A2     );
 
     A0 =   - s;
     A1 = s - t;
     A2 = t;
 
-    C[0] =    - A0;
-    C[1] = A0 - A1;
-    C[2] = A1 - A2;
-    C[3] = A2;
+    C[0] = 6.0f * (   - A0);
+    C[1] = 6.0f * (A0 - A1);
+    C[2] = 6.0f * (A1 - A2);
+    C[3] = 6.0f * (A2     );
 }
 
 // ----------------------------------------------------------------------------
@@ -1227,10 +1228,10 @@ OsdComputePerPatchVertexBSpline(ivec3 patchParam, int ID, vec3 cv[16],
 void
 OsdEvalPatchBezier(ivec3 patchParam, vec2 UV,
                    OsdPerPatchVertexBezier cv[16],
-                   out vec3 P, out vec3 dPu, out vec3 dPv,
-                   out vec3 N, out vec3 dNu, out vec3 dNv)
+                   out vec3 P, out vec3 dPs, out vec3 dPt,
+                   out vec3 dPss, out vec3 dPst, out vec3 dPtt)
 {
-#ifdef OSD_COMPUTE_NORMAL_DERIVATIVES
+#ifdef OSD_COMPUTE_SECOND_DERIVATIVES
     float B[4], D[4], C[4];
     vec3 BUCP[4] = vec3[4](vec3(0), vec3(0), vec3(0), vec3(0)),
          DUCP[4] = vec3[4](vec3(0), vec3(0), vec3(0), vec3(0)),
@@ -1258,7 +1259,7 @@ OsdEvalPatchBezier(ivec3 patchParam, vec2 UV,
 
             BUCP[i] += A * B[j];
             DUCP[i] += A * D[j];
-#ifdef OSD_COMPUTE_NORMAL_DERIVATIVES
+#ifdef OSD_COMPUTE_SECOND_DERIVATIVES
             CUCP[i] += A * C[j];
 #endif
         }
@@ -1270,7 +1271,7 @@ OsdEvalPatchBezier(ivec3 patchParam, vec2 UV,
             vec3 A = cv[4*i + j].P;
             BUCP[i] += A * B[j];
             DUCP[i] += A * D[j];
-#ifdef OSD_COMPUTE_NORMAL_DERIVATIVES
+#ifdef OSD_COMPUTE_SECOND_DERIVATIVES
             CUCP[i] += A * C[j];
 #endif
         }
@@ -1279,64 +1280,34 @@ OsdEvalPatchBezier(ivec3 patchParam, vec2 UV,
     // ----------------------------------------------------------------
 
     P   = vec3(0);
-    dPu = vec3(0);
-    dPv = vec3(0);
+    dPs = vec3(0);
+    dPt = vec3(0);
+    dPss = vec3(0);
+    dPst = vec3(0);
+    dPtt = vec3(0);
 
-#ifdef OSD_COMPUTE_NORMAL_DERIVATIVES
-    // used for weingarten term
+#ifdef OSD_COMPUTE_SECOND_DERIVATIVES
     OsdUnivar4x4(UV.y, B, D, C);
-
-    vec3 dUU = vec3(0);
-    vec3 dVV = vec3(0);
-    vec3 dUV = vec3(0);
 
     for (int k=0; k<4; ++k) {
         P   += B[k] * BUCP[k];
-        dPu += B[k] * DUCP[k];
-        dPv += D[k] * BUCP[k];
+        dPs += B[k] * DUCP[k];
+        dPt += D[k] * BUCP[k];
 
-        dUU += B[k] * CUCP[k];
-        dVV += C[k] * BUCP[k];
-        dUV += D[k] * DUCP[k];
+        dPss += B[k] * CUCP[k];
+        dPst += D[k] * DUCP[k];
+        dPtt += C[k] * BUCP[k];
     }
 
-    int level = OsdGetPatchFaceLevel(patchParam);
-    dPu *= 3 * level;
-    dPv *= 3 * level;
-    dUU *= 6 * level;
-    dVV *= 6 * level;
-    dUV *= 9 * level;
-
-    vec3 n = cross(dPu, dPv);
-    N = normalize(n);
-
-    float E = dot(dPu, dPu);
-    float F = dot(dPu, dPv);
-    float G = dot(dPv, dPv);
-    float e = dot(N, dUU);
-    float f = dot(N, dUV);
-    float g = dot(N, dVV);
-
-    dNu = (f*F-e*G)/(E*G-F*F) * dPu + (e*F-f*E)/(E*G-F*F) * dPv;
-    dNv = (g*F-f*G)/(E*G-F*F) * dPu + (f*F-g*E)/(E*G-F*F) * dPv;
-
-    dNu = dNu/length(n) - n * (dot(dNu,n)/pow(dot(n,n), 1.5));
-    dNv = dNv/length(n) - n * (dot(dNv,n)/pow(dot(n,n), 1.5));
 #else
     OsdUnivar4x4(UV.y, B, D);
 
     for (int k=0; k<4; ++k) {
         P   += B[k] * BUCP[k];
-        dPu += B[k] * DUCP[k];
-        dPv += D[k] * BUCP[k];
+        dPs += B[k] * DUCP[k];
+        dPt += D[k] * BUCP[k];
     }
-    int level = OsdGetPatchFaceLevel(patchParam);
-    dPu *= 3 * level;
-    dPv *= 3 * level;
 
-    N = normalize(cross(dPu, dPv));
-    dNu = vec3(0);
-    dNv = vec3(0);
 #endif
 }
 
@@ -1359,8 +1330,8 @@ OsdComputePerPatchVertexGregoryBasis(ivec3 patchParam, int ID, vec3 cv,
 
 void
 OsdEvalPatchGregory(ivec3 patchParam, vec2 UV, vec3 cv[20],
-                    out vec3 P, out vec3 dPu, out vec3 dPv,
-                    out vec3 N, out vec3 dNu, out vec3 dNv)
+                    out vec3 P, out vec3 dPs, out vec3 dPt,
+                    out vec3 dPss, out vec3 dPst, out vec3 dPtt)
 {
     float u = UV.x, v = UV.y;
     float U = 1-u, V = 1-v;
@@ -1412,17 +1383,17 @@ OsdEvalPatchGregory(ivec3 patchParam, vec2 UV, vec3 cv[20],
     q[15] = cv[10];
 
     P   = vec3(0);
-    dPu = vec3(0);
-    dPv = vec3(0);
+    dPs = vec3(0);
+    dPt = vec3(0);
+    dPss = vec3(0);
+    dPst = vec3(0);
+    dPtt = vec3(0);
 
-#ifdef OSD_COMPUTE_NORMAL_DERIVATIVES
+#ifdef OSD_COMPUTE_SECOND_DERIVATIVES
     float B[4], D[4], C[4];
     vec3 BUCP[4] = vec3[4](vec3(0), vec3(0), vec3(0), vec3(0)),
          DUCP[4] = vec3[4](vec3(0), vec3(0), vec3(0), vec3(0)),
          CUCP[4] = vec3[4](vec3(0), vec3(0), vec3(0), vec3(0));
-    vec3 dUU = vec3(0);
-    vec3 dVV = vec3(0);
-    vec3 dUV = vec3(0);
 
     OsdUnivar4x4(UV.x, B, D, C);
 
@@ -1439,35 +1410,13 @@ OsdEvalPatchGregory(ivec3 patchParam, vec2 UV, vec3 cv[20],
 
     for (int i=0; i<4; ++i) {
         P   += B[i] * BUCP[i];
-        dPu += B[i] * DUCP[i];
-        dPv += D[i] * BUCP[i];
-        dUU += B[i] * CUCP[i];
-        dVV += C[i] * BUCP[i];
-        dUV += D[i] * DUCP[i];
+        dPs += B[i] * DUCP[i];
+        dPt += D[i] * BUCP[i];
+        dPss += B[i] * CUCP[i];
+        dPst += D[i] * DUCP[i];
+        dPtt += C[i] * BUCP[i];
     }
 
-    int level = OsdGetPatchFaceLevel(patchParam);
-    dPu *= 3 * level;
-    dPv *= 3 * level;
-    dUU *= 6 * level;
-    dVV *= 6 * level;
-    dUV *= 9 * level;
-
-    vec3 n = cross(dPu, dPv);
-    N = normalize(n);
-
-    float E = dot(dPu, dPu);
-    float F = dot(dPu, dPv);
-    float G = dot(dPv, dPv);
-    float e = dot(N, dUU);
-    float f = dot(N, dUV);
-    float g = dot(N, dVV);
-
-    dNu = (f*F-e*G)/(E*G-F*F) * dPu + (e*F-f*E)/(E*G-F*F) * dPv;
-    dNv = (g*F-f*G)/(E*G-F*F) * dPu + (f*F-g*E)/(E*G-F*F) * dPv;
-
-    dNu = dNu/length(n) - n * (dot(dNu,n)/pow(dot(n,n), 1.5));
-    dNv = dNv/length(n) - n * (dot(dNv,n)/pow(dot(n,n), 1.5));
 #else
     float B[4], D[4];
     vec3 BUCP[4] = vec3[4](vec3(0), vec3(0), vec3(0), vec3(0)),
@@ -1487,16 +1436,10 @@ OsdEvalPatchGregory(ivec3 patchParam, vec2 UV, vec3 cv[20],
 
     for (int i=0; i<4; ++i) {
         P += B[i] * BUCP[i];
-        dPu += B[i] * DUCP[i];
-        dPv += D[i] * BUCP[i];
+        dPs += B[i] * DUCP[i];
+        dPt += D[i] * BUCP[i];
     }
-    int level = OsdGetPatchFaceLevel(patchParam);
-    dPu *= 3 * level;
-    dPv *= 3 * level;
 
-    N = normalize(cross(dPu, dPv));
-    dNu = vec3(0);
-    dNv = vec3(0);
 #endif
 }
 
