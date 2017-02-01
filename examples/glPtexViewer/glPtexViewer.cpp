@@ -682,7 +682,7 @@ public:
             ss << "#define NORMAL_BIQUADRATIC\n";
             break;
         case NORMAL_BIQUADRATIC_WG:
-            ss << "#define OSD_COMPUTE_NORMAL_DERIVATIVES\n";
+            ss << "#define OSD_COMPUTE_SECOND_DERIVATIVES\n";
             ss << "#define NORMAL_BIQUADRATIC_WG\n";
             break;
         }

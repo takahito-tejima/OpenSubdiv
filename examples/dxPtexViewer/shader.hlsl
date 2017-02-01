@@ -22,6 +22,19 @@
 //   language governing permissions and limitations under the Apache License.
 //
 
+//--------------------------------------------------------------
+// Uniforms / Uniform Blocks
+//--------------------------------------------------------------
+
+#define NUM_LIGHTS 2
+
+struct LightSource {
+    float4 position;
+    float4 ambient;
+    float4 diffuse;
+    float4 specular;
+};
+
 struct OutputPointVertex {
     float4 positionOut : SV_Position;
 };
@@ -38,37 +51,22 @@ cbuffer Tessellation : register( b1 ) {
     int PrimitiveIdBase;
 };
 
+cbuffer Lighting : register( b2 ) {
+    LightSource lightSource[NUM_LIGHTS];
+};
+
 cbuffer Config : register( b3 ) {
     float displacementScale;
     float mipmapBias;
 };
 
-float4x4 OsdModelViewMatrix()
-{
-    return ModelViewMatrix;
-}
-float4x4 OsdProjectionMatrix()
-{
-    return ProjectionMatrix;
-}
-float4x4 OsdModelViewProjectionMatrix()
-{
-    return ModelViewProjectionMatrix;
-}
-float OsdTessLevel()
-{
-    return TessLevel;
-}
-int OsdGregoryQuadOffsetBase()
-{
-    return 0;
-}
-int OsdPrimitiveIdBase()
-{
-    return PrimitiveIdBase;
-}
+//--------------------------------------------------------------
 
-// ---------------------------------------------------------------------------
+float4 GeneratePatchCoord(float2 uv, int primitiveID)  // for non-adaptive
+{
+    int3 patchParam = OsdGetPatchParam(OsdGetPatchIndex(primitiveID));
+    return OsdInterpolatePatchCoord(uv, patchParam);
+}
 
 #if    defined(DISPLACEMENT_HW_BILINEAR)        \
     || defined(DISPLACEMENT_BILINEAR)           \
@@ -114,11 +112,35 @@ float4 displacement(float4 position, float3 normal, float4 patchCoord)
 }
 #endif
 
-float4 GeneratePatchCoord(float2 uv, int primitiveID)  // for non-adaptive
+//--------------------------------------------------------------
+// Osd external functions
+//--------------------------------------------------------------
+
+float4x4 OsdModelViewMatrix()
 {
-    int3 patchParam = OsdGetPatchParam(OsdGetPatchIndex(primitiveID));
-    return OsdInterpolatePatchCoord(uv, patchParam);
+    return ModelViewMatrix;
 }
+float4x4 OsdProjectionMatrix()
+{
+    return ProjectionMatrix;
+}
+float4x4 OsdModelViewProjectionMatrix()
+{
+    return ModelViewProjectionMatrix;
+}
+float OsdTessLevel()
+{
+    return TessLevel;
+}
+int OsdGregoryQuadOffsetBase()
+{
+    return 0;
+}
+int OsdPrimitiveIdBase()
+{
+    return PrimitiveIdBase;
+}
+
 
 // ---------------------------------------------------------------------------
 //  Vertex Shader
@@ -132,8 +154,8 @@ void vs_main( in InputVertex input,
     output.normal = mul(ModelViewMatrix,float4(input.normal, 0)).xyz;
 
     output.patchCoord = float4(0,0,0,0);
-    output.tangent = float3(0,0,0);
-    output.bitangent = float3(0,0,0);
+    output.dPu = float3(0,0,0);
+    output.dPv = float3(0,0,0);
     output.edgeDistance = float4(0,0,0,0);
 }
 
@@ -289,126 +311,9 @@ void gs_main( triangle OutputVertex input[3],
 
 #endif
 
-
-// ---------------------------------------------------------------------------
-//  IBL lighting
-// ---------------------------------------------------------------------------
-
-Texture2D diffuseEnvironmentMap : register(t12);
-Texture2D specularEnvironmentMap : register(t13);
-
-SamplerState iblSampler : register(s0);
-
-#define M_PI 3.14159265358
-
-float4
-gamma(float4 value, float g) {
-    return float4(pow(value.xyz, float3(g,g,g)), 1);
-}
-
-float4
-getEnvironmentHDR(Texture2D tx, SamplerState sm, float3 dir)
-{
-    dir = mul(ModelViewInverseMatrix, float4(dir, 0)).xyz;
-    float2 uv = float2((atan2(dir.x,dir.z)/M_PI+1)*0.5, (1-dir.y)*0.5);
-    return tx.Sample(sm, uv);
-}
-
-
-// ---------------------------------------------------------------------------
-//  Lighting
-// ---------------------------------------------------------------------------
-
-#define NUM_LIGHTS 2
-
-struct LightSource {
-    float4 position;
-    float4 ambient;
-    float4 diffuse;
-    float4 specular;
-};
-
-cbuffer Lighting : register( b2 ) {
-    LightSource lightSource[NUM_LIGHTS];
-};
-
-float4
-lighting(float4 texColor, float3 Peye, float3 Neye, float occ)
-{
-    float4 color = float4(0.0, 0.0, 0.0, 0.0);
-    float3 n = Neye;
-
-    for (int i = 0; i < NUM_LIGHTS; ++i) {
-
-        float4 Plight = lightSource[i].position;
-        float3 l = (Plight.w == 0.0)
-                    ? normalize(Plight.xyz) : normalize(Plight.xyz - Peye);
-
-        float3 h = normalize(l + float3(0,0,1));    // directional viewer
-
-        float d = max(0.0, dot(n, l));
-        float s = pow(max(0.0, dot(n, h)), 64.0f);
-
-        color += (1.0 - occ) * ((lightSource[i].ambient +
-                                 d * lightSource[i].diffuse) * texColor +
-                                s * lightSource[i].specular);
-    }
-
-    color.a = 1.0;
-    return color;
-}
-
-// ---------------------------------------------------------------------------
+//--------------------------------------------------------------
 //  Pixel Shader
-// ---------------------------------------------------------------------------
-
-float4
-edgeColor(float4 Cfill, float4 edgeDistance)
-{
-#if defined(GEOMETRY_OUT_WIRE) || defined(GEOMETRY_OUT_LINE)
-#ifdef PRIM_TRI
-    float d =
-        min(edgeDistance[0], min(edgeDistance[1], edgeDistance[2]));
-#endif
-#ifdef PRIM_QUAD
-    float d =
-        min(min(edgeDistance[0], edgeDistance[1]),
-            min(edgeDistance[2], edgeDistance[3]));
-#endif
-    float4 Cedge = float4(1.0, 1.0, 0.0, 1.0);
-    float p = exp2(-2 * d * d);
-
-#if defined(GEOMETRY_OUT_WIRE)
-    if (p < 0.25) discard;
-#endif
-
-    Cfill.rgb = lerp(Cfill.rgb, Cedge.rgb, p);
-#endif
-    return Cfill;
-}
-
-// ---------------------------------------------------------------------------
-//  Pixel Shader
-// ---------------------------------------------------------------------------
-
-
-#if defined(COLOR_PTEX_NEAREST) ||     \
-    defined(COLOR_PTEX_HW_BILINEAR) || \
-    defined(COLOR_PTEX_BILINEAR) ||    \
-    defined(COLOR_PTEX_BIQUADRATIC)
-Texture2DArray textureImage_Data : register(t4);
-Buffer<uint> textureImage_Packing : register(t5);
-#endif
-
-#ifdef USE_PTEX_OCCLUSION
-Texture2DArray textureOcclusion_Data : register(t8);
-Buffer<uint> textureOcclusion_Packing : register(t9);
-#endif
-
-#ifdef USE_PTEX_SPECULAR
-Texture2DArray textureSpecular_Data : register(t10);
-Buffer<uint> textureSpecular_Packing : register(t11);
-#endif
+//--------------------------------------------------------------
 
 float4
 getAdaptivePatchColor(int3 patchParam, float sharpness)
@@ -493,6 +398,145 @@ getAdaptivePatchColor(int3 patchParam, float sharpness)
     return patchColors[6*patchType + pattern];
 }
 
+
+#if defined(NORMAL_HW_SCREENSPACE) || defined(NORMAL_SCREENSPACE)
+
+float3
+perturbNormalFromDisplacement(float3 position, float3 normal, float4 patchCoord)
+{
+    // by Morten S. Mikkelsen
+    // http://jbit.net/~sparky/sfgrad_bump/mm_sfgrad_bump.pdf
+    // slightly modified for ptex guttering
+
+    float3 vSigmaS = ddx(position);
+    float3 vSigmaT = ddy(position);
+    float3 vN = normal;
+    float3 vR1 = cross(vSigmaT, vN);
+    float3 vR2 = cross(vN, vSigmaS);
+    float fDet = dot(vSigmaS, vR1);
+#if 0
+    // not work well with ptex
+    float dBs = ddx(disp);
+    float dBt = ddy(disp);
+#else
+    float2 texDx = ddx(patchCoord.xy);
+    float2 texDy = ddy(patchCoord.xy);
+
+    // limit forward differencing to the width of ptex gutter
+    const float resolution = 128.0;
+    float d = min(1, (0.5/resolution)/max(length(texDx), length(texDy)));
+
+    float4 STll = patchCoord;
+    float4 STlr = patchCoord + d * float4(texDx.x, texDx.y, 0, 0);
+    float4 STul = patchCoord + d * float4(texDy.x, texDy.y, 0, 0);
+#if defined NORMAL_HW_SCREENSPACE
+    float Hll = PtexLookup(STll, 0, textureDisplace_Data, textureDisplace_Packing).x * displacementScale;
+    float Hlr = PtexLookup(STlr, 0, textureDisplace_Data, textureDisplace_Packing).x * displacementScale;
+    float Hul = PtexLookup(STul, 0, textureDisplace_Data, textureDisplace_Packing).x * displacementScale;
+#elif defined NORMAL_SCREENSPACE
+    float Hll = PtexMipmapLookup(STll, mipmapBias, textureDisplace_Data, textureDisplace_Packing).x * displacementScale;
+    float Hlr = PtexMipmapLookup(STlr, mipmapBias, textureDisplace_Data, textureDisplace_Packing).x * displacementScale;
+    float Hul = PtexMipmapLookup(STul, mipmapBias, textureDisplace_Data, textureDisplace_Packing).x * displacementScale;
+#endif
+    float dBs = (Hlr - Hll)/d;
+    float dBt = (Hul - Hll)/d;
+#endif
+
+    float3 vSurfGrad = sign(fDet) * (dBs * vR1 + dBt * vR2);
+    return normalize(abs(fDet) * vN - vSurfGrad);
+}
+
+#endif // NORMAL_SCREENSPACE
+
+Texture2D diffuseEnvironmentMap : register(t12);
+Texture2D specularEnvironmentMap : register(t13);
+
+SamplerState iblSampler : register(s0);
+
+#define M_PI 3.14159265358
+
+float4
+gamma(float4 value, float g) {
+    return float4(pow(value.xyz, float3(g,g,g)), 1);
+}
+
+float4
+getEnvironmentHDR(Texture2D tx, SamplerState sm, float3 dir)
+{
+    dir = mul(ModelViewInverseMatrix, float4(dir, 0)).xyz;
+    float2 uv = float2((atan2(dir.x,dir.z)/M_PI+1)*0.5, (1-dir.y)*0.5);
+    return tx.Sample(sm, uv);
+}
+
+float4
+lighting(float4 texColor, float3 Peye, float3 Neye, float occ)
+{
+    float4 color = float4(0.0, 0.0, 0.0, 0.0);
+    float3 n = Neye;
+
+    for (int i = 0; i < NUM_LIGHTS; ++i) {
+
+        float4 Plight = lightSource[i].position;
+        float3 l = (Plight.w == 0.0)
+                    ? normalize(Plight.xyz) : normalize(Plight.xyz - Peye);
+
+        float3 h = normalize(l + float3(0,0,1));    // directional viewer
+
+        float d = max(0.0, dot(n, l));
+        float s = pow(max(0.0, dot(n, h)), 64.0f);
+
+        color += (1.0 - occ) * ((lightSource[i].ambient +
+                                 d * lightSource[i].diffuse) * texColor +
+                                s * lightSource[i].specular);
+    }
+
+    color.a = 1.0;
+    return color;
+}
+
+float4
+edgeColor(float4 Cfill, float4 edgeDistance)
+{
+#if defined(GEOMETRY_OUT_WIRE) || defined(GEOMETRY_OUT_LINE)
+#ifdef PRIM_TRI
+    float d =
+        min(edgeDistance[0], min(edgeDistance[1], edgeDistance[2]));
+#endif
+#ifdef PRIM_QUAD
+    float d =
+        min(min(edgeDistance[0], edgeDistance[1]),
+            min(edgeDistance[2], edgeDistance[3]));
+#endif
+    float4 Cedge = float4(1.0, 1.0, 0.0, 1.0);
+    float p = exp2(-2 * d * d);
+
+#if defined(GEOMETRY_OUT_WIRE)
+    if (p < 0.25) discard;
+#endif
+
+    Cfill.rgb = lerp(Cfill.rgb, Cedge.rgb, p);
+#endif
+    return Cfill;
+}
+
+#if defined(COLOR_PTEX_NEAREST) ||     \
+    defined(COLOR_PTEX_HW_BILINEAR) || \
+    defined(COLOR_PTEX_BILINEAR) ||    \
+    defined(COLOR_PTEX_BIQUADRATIC)
+Texture2DArray textureImage_Data : register(t4);
+Buffer<uint> textureImage_Packing : register(t5);
+#endif
+
+#ifdef USE_PTEX_OCCLUSION
+Texture2DArray textureOcclusion_Data : register(t8);
+Buffer<uint> textureOcclusion_Packing : register(t9);
+#endif
+
+#ifdef USE_PTEX_SPECULAR
+Texture2DArray textureSpecular_Data : register(t10);
+Buffer<uint> textureSpecular_Packing : register(t11);
+#endif
+
 void
 ps_main(in OutputVertex input,
         uint primitiveID : SV_PrimitiveID,
@@ -504,26 +548,46 @@ ps_main(in OutputVertex input,
                                                   input.normal,
                                                   input.patchCoord);
 #elif defined(NORMAL_BIQUADRATIC) || defined(NORMAL_BIQUADRATIC_WG)
-    float4 du, dv;
-    float4 disp = PtexMipmapLookupQuadratic(du, dv, input.patchCoord,
+    float4 dDu, dDv;
+    float4 disp = PtexMipmapLookupQuadratic(dDu, dDv, input.patchCoord,
                                             mipmapBias,
                                             textureDisplace_Data,
                                             textureDisplace_Packing);
 
     disp *= displacementScale;
-    du *= displacementScale;
-    dv *= displacementScale;
+    dDu *= displacementScale;
+    dDv *= displacementScale;
+    float3 dPu = input.dPu;
+    float3 dPv = input.dPv;
 
-    float3 n = normalize(cross(input.tangent, input.bitangent));
-    float3 tangent = input.tangent + n * du.x;
-    float3 bitangent = input.bitangent + n * dv.x;
+    float3 n = cross(dPu, dPv);
+    float3 N = normalize(n);
+    float3 tangent   = dPu + N * dDu.x;
+    float3 bitangent = dPv + N * dDv.x;
 
 #if defined(NORMAL_BIQUADRATIC_WG)
-    tangent += input.Nu * disp.x;
-    bitangent += input.Nv * disp.x;
-#endif
+    // note: this computation can also be done in the domain shader.
+    float3 dPuu = input.dPuu;
+    float3 dPuv = input.dPuv;
+    float3 dPvv = input.dPvv;
+    float E = dot(dPu, dPu);
+    float F = dot(dPu, dPv);
+    float G = dot(dPv, dPv);
+    float e = dot(N, dPuu);
+    float f = dot(N, dPuv);
+    float g = dot(N, dPvv);
+    float3 Nu = (f*F-e*G)/(E*G-F*F) * dPu + (e*F-f*E)/(E*G-F*F) * dPv;
+    float3 Nv = (g*F-f*G)/(E*G-F*F) * dPu + (f*F-g*E)/(E*G-F*F) * dPv;
+    Nu = Nu/length(n) - n * (dot(Nu,n)/pow(dot(n,n), 1.5));
+    Nv = Nv/length(n) - n * (dot(Nv,n)/pow(dot(n,n), 1.5));
 
-    float3 normal = normalize(cross(tangent, bitangent));
+    tangent   += Nu * disp.x;
+    bitangent += Nv * disp.x;
+#endif
+    // normals computed from derivatives are in object space.
+    // transform it into eye space.
+    float3 normal = mul(transpose(ModelViewInverseMatrix),
+                        float4(normalize(cross(tangent, bitangent)), 0)).xyz;
 #else
     float3 normal = input.normal;
 #endif
@@ -534,7 +598,7 @@ ps_main(in OutputVertex input,
                                         textureImage_Data,
                                         textureImage_Packing);
 #elif defined(COLOR_PTEX_HW_BILINEAR)
-    float4 texColor = PtexLookupFast(input.patchCoord,
+    float4 texColor = PtexLookup(input.patchCoord, 0,
                                    textureImage_Data,
                                    textureImage_Packing);
 #elif defined(COLOR_PTEX_BILINEAR)

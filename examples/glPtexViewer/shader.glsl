@@ -148,12 +148,13 @@ out block {
 void main()
 {
     outpt.v.position = ModelViewMatrix * position;
-    outpt.v.normal = (ModelViewMatrix * vec4(normal, 0)).xyz;
+    outpt.v.normal = (transpose(ModelViewInverseMatrix)
+                     * vec4(normal, 0)).xyz;
 
     outpt.v.patchCoord = vec4(0);
     outpt.v.tessCoord = vec2(0);
-    outpt.v.tangent = vec3(0);
-    outpt.v.bitangent = vec3(0);
+    outpt.v.dPu = vec3(0);
+    outpt.v.dPv = vec3(0);
 }
 
 #endif
@@ -198,7 +199,7 @@ in block {
 
 out block {
     OutputVertex v;
-    noperspective out vec4 edgeDistance;
+    noperspective vec4 edgeDistance;
 } outpt;
 
 // --------------------------------------
@@ -208,12 +209,12 @@ void emit(int index, vec4 position, vec3 normal, vec4 patchCoord)
     outpt.v.position = position;
     outpt.v.patchCoord = patchCoord;
     outpt.v.normal = normal;
-    outpt.v.tangent = inpt[index].v.tangent;
-    outpt.v.bitangent = inpt[index].v.bitangent;
-
-#if defined(NORMAL_BIQUADRATIC_WG)
-    outpt.v.Nu = inpt[index].v.Nu;
-    outpt.v.Nv = inpt[index].v.Nv;
+    outpt.v.dPu = inpt[index].v.dPu;
+    outpt.v.dPv = inpt[index].v.dPv;
+#if defined(OSD_COMPUTE_SECOND_DERIVATIVES)
+    outpt.v.dPuu = inpt[index].v.dPuu;
+    outpt.v.dPuv = inpt[index].v.dPuv;
+    outpt.v.dPvv = inpt[index].v.dPvv;
 #endif
 
     gl_Position = ProjectionMatrix * outpt.v.position;
@@ -387,7 +388,7 @@ void main()
 
 in block {
     OutputVertex v;
-    noperspective in vec4 edgeDistance;
+    noperspective vec4 edgeDistance;
 } inpt;
 
 out vec4 outColor;
@@ -619,26 +620,48 @@ main()
                                                 inpt.v.normal,
                                                 inpt.v.patchCoord);
 #elif defined(NORMAL_BIQUADRATIC) || defined(NORMAL_BIQUADRATIC_WG)
-    vec4 du, dv;
-    vec4 disp = PtexMipmapLookupQuadratic(du, dv, inpt.v.patchCoord,
+
+    vec4 dDu, dDv;
+    vec4 disp = PtexMipmapLookupQuadratic(dDu, dDv, inpt.v.patchCoord,
                                           mipmapBias,
                                           textureDisplace_Data,
                                           textureDisplace_Packing);
 
     disp *= displacementScale;
-    du *= displacementScale;
-    dv *= displacementScale;
+    dDu *= displacementScale;
+    dDv *= displacementScale;
+    vec3 dPu = inpt.v.dPu;
+    vec3 dPv = inpt.v.dPv;
 
-    vec3 n = normalize(cross(inpt.v.tangent, inpt.v.bitangent));
-    vec3 tangent = inpt.v.tangent + n * du.x;
-    vec3 bitangent = inpt.v.bitangent + n * dv.x;
+    vec3 n = cross(dPu, dPv);
+    vec3 N = normalize(n);
+    vec3 tangent   = dPu + N * dDu.x;
+    vec3 bitangent = dPv + N * dDv.x;
 
 #if defined(NORMAL_BIQUADRATIC_WG)
-    tangent += inpt.v.Nu * disp.x;
-    bitangent += inpt.v.Nv * disp.x;
-#endif
+    // note: this computation can also be done in the eval shader.
+    vec3 dPuu = inpt.v.dPuu;
+    vec3 dPuv = inpt.v.dPuv;
+    vec3 dPvv = inpt.v.dPvv;
+    float E = dot(dPu, dPu);
+    float F = dot(dPu, dPv);
+    float G = dot(dPv, dPv);
+    float e = dot(N, dPuu);
+    float f = dot(N, dPuv);
+    float g = dot(N, dPvv);
+    vec3 Nu = (f*F-e*G)/(E*G-F*F) * dPu + (e*F-f*E)/(E*G-F*F) * dPv;
+    vec3 Nv = (g*F-f*G)/(E*G-F*F) * dPu + (f*F-g*E)/(E*G-F*F) * dPv;
+    Nu = Nu/length(n) - n * (dot(Nu,n)/pow(dot(n,n), 1.5));
+    Nv = Nv/length(n) - n * (dot(Nv,n)/pow(dot(n,n), 1.5));
 
-    vec3 normal = normalize(cross(tangent, bitangent));
+    tangent   += Nu * disp.x;
+    bitangent += Nv * disp.x;
+#endif
+    // normals computed from derivatives are in object space.
+    // transform it to eye space.
+    vec3 normal = (transpose(ModelViewInverseMatrix)*
+                   vec4(normalize(cross(tangent, bitangent)), 0)).xyz;
+
 #else
     vec3 normal = inpt.v.normal;
 #endif

@@ -73,7 +73,8 @@ void vs_main( in InputVertex input,
 {
     output.positionOut = mul(ModelViewProjectionMatrix, input.position);
     output.position = mul(ModelViewMatrix, input.position);
-    output.normal = mul(ModelViewMatrix,float4(input.normal, 0)).xyz;
+    output.normal = mul(transpose(ModelViewInverseMatrix),
+                        float4(input.normal, 0)).xyz;
 }
 
 // ---------------------------------------------------------------------------
@@ -442,13 +443,33 @@ ps_main( in OutputVertex input,
          bool isFrontFacing : SV_IsFrontFace,
          out float4 colorOut : SV_Target )
 {
+    float3 N = (isFrontFacing ? input.normal : -input.normal);
+    float3 Nobj = mul(ModelViewInverseMatrix, float4(input.normal, 0)).xyz;
+
+#ifdef OSD_COMPUTE_SECOND_DERIVATIVES
+    float3 dPu = input.dPu;
+    float3 dPv = input.dPv;
+    float3 dPuu = input.dPuu;
+    float3 dPuv = input.dPuv;
+    float3 dPvv = input.dPvv;
+    float3  n = normalize(cross(dPu, dPv));
+    float E = dot(dPu, dPu);
+    float F = dot(dPu, dPv);
+    float G = dot(dPv, dPv);
+    float e = dot(n, dPuu);
+    float f = dot(n, dPuv);
+    float g = dot(n, dPvv);
+    float3 Nu = (f*F-e*G)/(E*G-F*F) * dPu + (e*F-f*E)/(E*G-F*F) * dPv;
+    float3 Nv = (g*F-f*G)/(E*G-F*F) * dPu + (f*F-g*E)/(E*G-F*F) * dPv;
+    float Ck = (e*g - f*f)/(E*G - F*F);
+    float Ch = 0.5 * (E*g - 2*F*f + G*e) / (E*G - F*F);
+#endif
+
+#if defined(SHADING_PATCH_TYPE)
     float2 vSegments = float2(0,0);
 #ifdef OSD_PATCH_ENABLE_SINGLE_CREASE
     vSegments = input.vSegments;
 #endif
-
-
-#if defined(SHADING_PATCH_TYPE)
     float4 color = getAdaptivePatchColor(
         OsdGetPatchParam(OsdGetPatchIndex(primitiveID)), vSegments);
 #elif defined(SHADING_PATCH_COORD)
@@ -459,11 +480,23 @@ ps_main( in OutputVertex input,
     float4 color = float4(1, 1, 1, 1);
 #endif
 
-    float3 N = (isFrontFacing ? input.normal : -input.normal);
     float4 Cf = lighting(color, input.position.xyz, N);
 
 #if defined(SHADING_NORMAL)
     Cf.rgb = N;
+#elif defined(SHADING_TANGENT)
+    Cf.rgb = (input.dPu + input.dPv) * 0.5;
+#elif defined(SHADING_NORMAL_CURVATURE_SCREEN_SPACE)
+    float3 pc = fwidth(input.position.xyz);
+    float3 dN = fwidth(Nobj);
+    Cf.rgb = 0.1 * dN / length(pc);
+#elif defined(SHADING_NORMAL_CURVATURE)
+    float3 Np = max(abs(Nu/length(dPu)), abs(Nv/length(dPv)));
+    Cf.rgb = 0.1 * Np;
+#elif defined(SHADING_MEAN_CURVATURE)
+    Cf.rgb = 0.1 * float3(abs(Ch), abs(Ch), abs(Ch));
+#elif defined(SHADING_GAUSSIAN_CURVATURE)
+    Cf.rgb = 0.1 * float3(max(0, Ck), max(0, -Ck), 0);
 #endif
 
     colorOut = edgeColor(Cf, input.edgeDistance);

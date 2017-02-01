@@ -115,7 +115,7 @@ out block {
 void main()
 {
     vec3 P = vec3(0), dPu = vec3(0), dPv = vec3(0);
-    vec3 N = vec3(0), dNu = vec3(0), dNv = vec3(0);
+    vec3 dPuu = vec3(0), dPuv = vec3(0), dPvv = vec3(0);
 
     vec3 cv[20];
     cv[0] = inpt[0].v.P;
@@ -144,16 +144,22 @@ void main()
 
     vec2 UV = gl_TessCoord.xy;
     ivec3 patchParam = inpt[0].v.patchParam;
-    OsdEvalPatchGregory(patchParam, UV, cv, P, dPu, dPv, N, dNu, dNv);
+    OsdEvalPatchGregory(patchParam, UV, cv, P, dPu, dPv, dPuu, dPuv, dPvv);
+
+    int level = OsdGetPatchFaceLevel(patchParam);
+    vec3 n = cross(dPu, dPv);
+    vec3 N = normalize(n);
 
     // all code below here is client code
     outpt.v.position = OsdModelViewMatrix() * vec4(P, 1.0f);
     outpt.v.normal = (OsdModelViewMatrix() * vec4(N, 0.0f)).xyz;
-    outpt.v.tangent = (OsdModelViewMatrix() * vec4(dPu, 0.0f)).xyz;
-    outpt.v.bitangent = (OsdModelViewMatrix() * vec4(dPv, 0.0f)).xyz;
-#ifdef OSD_COMPUTE_NORMAL_DERIVATIVES
-    outpt.v.Nu = dNu;
-    outpt.v.Nv = dNv;
+
+    outpt.v.dPu = dPu*level;
+    outpt.v.dPv = dPv*level;
+#ifdef OSD_COMPUTE_SECOND_DERIVATIVES
+    outpt.v.dPuu = dPuu*level*level;
+    outpt.v.dPuv = dPuv*level*level;
+    outpt.v.dPvv = dPvv*level*level;
 #endif
 
     outpt.v.tessCoord = UV;

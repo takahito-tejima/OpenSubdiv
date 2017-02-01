@@ -104,11 +104,11 @@ Tessellation Evaluation Shader Example (for BSpline patches)
         vec2 UV = OsdGetTessParameterization(gl_TessCoord.xy, tessOuterLo, tessOuterHi);
 
         vec3 P = vec3(0), dPu = vec3(0), dPv = vec3(0);
-        vec3 N = vec3(0), dNu = vec3(0), dNv = vec3(0);
+        vec3 dPuu = vec3(0), dPuv = vec3(0), dPvv = vec3(0);
         ivec3 patchParam = inpt[0].v.patchParam;
 
         // Evaluate patch at the tess coord UV
-        OsdEvalPatchBezier(patchParam, UV, v, P, dPu, dPv, N, dNu, dNv);
+        OsdEvalPatchBezier(patchParam, UV, v, P, dPu, dPv, dPuu, dPuv, dPvv);
 
         // Apply model-view-projection matrix.
         gl_Position = mvpMatrix * vec4(P, 1);
@@ -144,7 +144,7 @@ and then evaluates the patch using the OsdEvalPatchBezier() function.
   void OsdEvalPatchBezier(ivec3 patchParam, vec2 UV,
                           OsdPerPatchVertexBezier cv[16],
                           out vec3 P, out vec3 dPu, out vec3 dPv,
-                          out vec3 N, out vec3 dNu, out vec3 dNv)
+                          out vec3 dPuu, out vec3 dPuv, out vec3 dPvv)
 
 
 Gregory Basis Patch
@@ -171,7 +171,7 @@ and then evaluates the patch using the OsdEvalPatchGregory() function.
   void
   OsdEvalPatchGregory(ivec3 patchParam, vec2 UV, vec3 cv[20],
                       out vec3 P, out vec3 dPu, out vec3 dPv,
-                      out vec3 N, out vec3 dNu, out vec3 dNv)
+                      out vec3 dPuu, out vec3 dPuv, out vec3 dPvv)
 
 
 Legacy Gregory Patch (2.x compatibility)
